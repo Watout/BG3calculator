@@ -1,0 +1,23 @@
+{
+  "name": "@bg3dc/rulesets",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@bg3dc/domain": "workspace:*",
+    "@bg3dc/prob": "workspace:*",
+    "@bg3dc/dice-parser": "workspace:*"
+  },
+  "scripts": {
+    "lint": "pnpm exec -- eslint src --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm exec -- vitest run --config ../../vitest.config.ts --dir ../.."
+  }
+}

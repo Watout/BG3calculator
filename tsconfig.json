@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./apps/desktop-tauri/tsconfig.json" },
+    { "path": "./packages/dice-parser/tsconfig.json" },
+    { "path": "./packages/prob/tsconfig.json" },
+    { "path": "./packages/domain/tsconfig.json" },
+    { "path": "./packages/rulesets/tsconfig.json" }
+  ]
+}
