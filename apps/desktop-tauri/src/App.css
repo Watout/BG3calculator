@@ -212,19 +212,29 @@ label {
 }
 
 .info-hint {
+  appearance: none;
+  -webkit-appearance: none;
   position: relative;
   display: inline-flex;
   justify-content: center;
   align-items: center;
   width: 16px;
   height: 16px;
+  padding: 0;
   border-radius: 999px;
   border: 1px solid rgba(92, 122, 153, 0.7);
+  background: transparent;
   color: #b6d5f2;
   font-size: 0.72rem;
   line-height: 1;
   cursor: help;
   user-select: none;
+  overflow: visible;
+}
+
+.info-hint:hover {
+  transform: none;
+  filter: none;
 }
 
 .info-hint:focus {
@@ -238,6 +248,8 @@ label {
   bottom: calc(100% + 8px);
   transform: translateX(-50%);
   width: min(300px, 72vw);
+  max-height: 60vh;
+  overflow: auto;
   background: rgba(7, 12, 18, 0.98);
   border: 1px solid rgba(129, 173, 217, 0.45);
   border-radius: 8px;
@@ -248,7 +260,7 @@ label {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.42);
   opacity: 0;
   pointer-events: none;
-  z-index: 30;
+  z-index: 1000;
 }
 
 .info-hint:hover .info-tip,

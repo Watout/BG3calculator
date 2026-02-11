@@ -41,11 +41,14 @@ export interface ComputeInput {
 
 export interface ComputeEntrySuccess {
   readonly id: string;
+  readonly hasOffHandStep: boolean;
   readonly expectedMainHand: string;
   readonly expectedOffHand: string;
   readonly expectedPerEntry: string;
   readonly expectedOnHitMainHand: string;
   readonly expectedOnCritMainHand: string;
+  readonly expectedOnHitOffHand: string;
+  readonly expectedOnCritOffHand: string;
   readonly mainHandProbabilitySummary: string;
   readonly offHandProbabilitySummary: string;
   readonly templateSummary: string;
@@ -135,10 +138,10 @@ function computeOneEntry(
   const parsedCriticalThreshold = Number(entry.criticalThresholdText);
   if (
     !Number.isFinite(parsedCriticalThreshold) ||
-    parsedCriticalThreshold < 17 ||
+    parsedCriticalThreshold < 10 ||
     parsedCriticalThreshold > 20
   ) {
-    return asFailure(requestId, `${label}重击阈值必须在 17 到 20 之间`);
+    return asFailure(requestId, `${label}重击阈值必须在 10 到 20 之间`);
   }
 
   const effectiveRollCount =
@@ -146,7 +149,7 @@ function computeOneEntry(
       ? 1
       : Math.max(2, Math.min(5, Math.floor(parsedRollCount)));
 
-  const safeCriticalThreshold = Math.max(17, Math.min(20, Math.floor(parsedCriticalThreshold)));
+  const safeCriticalThreshold = Math.max(10, Math.min(20, Math.floor(parsedCriticalThreshold)));
 
   const offHandText = entry.offHandDamageExprText.trim();
   let parsedOffHandDamageValue: ParsedDiceExpression | null = null;
@@ -224,6 +227,10 @@ function computeOneEntry(
   const expectedMainHandValue = mainHandStep?.result.expectedDamagePerAttack ?? 0;
   const expectedOffHandValue = offHandStep?.result.expectedDamagePerAttack ?? 0;
   const expectedPerEntryValue = resolved.totalResult.expectedDamagePerPlan;
+  const expectedOnHitMainHandValue = mainHandStep?.result.expectedDamageOnHit ?? 0;
+  const expectedOnCritMainHandValue = mainHandStep?.result.expectedDamageOnCritical ?? 0;
+  const expectedOnHitOffHandValue = offHandStep?.result.expectedDamageOnHit ?? 0;
+  const expectedOnCritOffHandValue = offHandStep?.result.expectedDamageOnCritical ?? 0;
   const mainProbabilities = mainHandStep?.result.probabilities ?? {
     miss: 1,
     hit: 0,
@@ -237,11 +244,14 @@ function computeOneEntry(
     expectedPerEntryValue,
     entry: {
       id: entry.id,
+      hasOffHandStep: useOffHand,
       expectedMainHand: expectedMainHandValue.toFixed(4),
       expectedOffHand: expectedOffHandValue.toFixed(4),
       expectedPerEntry: expectedPerEntryValue.toFixed(4),
-      expectedOnHitMainHand: (mainHandStep?.result.expectedDamageOnHit ?? 0).toFixed(4),
-      expectedOnCritMainHand: (mainHandStep?.result.expectedDamageOnCritical ?? 0).toFixed(4),
+      expectedOnHitMainHand: expectedOnHitMainHandValue.toFixed(4),
+      expectedOnCritMainHand: expectedOnCritMainHandValue.toFixed(4),
+      expectedOnHitOffHand: expectedOnHitOffHandValue.toFixed(4),
+      expectedOnCritOffHand: expectedOnCritOffHandValue.toFixed(4),
       mainHandProbabilitySummary: summarizeProbabilities(mainProbabilities),
       offHandProbabilitySummary:
         offHandProbabilities === null ? "-" : summarizeProbabilities(offHandProbabilities),

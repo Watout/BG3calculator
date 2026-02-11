@@ -52,7 +52,10 @@ describe("compute worker attack plan", (): void => {
     }
 
     expect(output.entries).toHaveLength(1);
+    expect(output.entries[0]?.hasOffHandStep).toBe(false);
     expect(output.entries[0]?.expectedOffHand).toBe("0.0000");
+    expect(output.entries[0]?.expectedOnHitOffHand).toBe("0.0000");
+    expect(output.entries[0]?.expectedOnCritOffHand).toBe("0.0000");
     expect(output.entries[0]?.offHandProbabilitySummary).toBe("-");
     expect(output.entries[0]?.templateSummary).toBe("副手留空，已回退为仅主手");
   });
@@ -73,7 +76,10 @@ describe("compute worker attack plan", (): void => {
       return;
     }
 
+    expect(output.entries[0]?.hasOffHandStep).toBe(true);
     expect(Number(output.entries[0]?.expectedOffHand ?? "0")).toBeGreaterThan(0);
+    expect(Number(output.entries[0]?.expectedOnHitOffHand ?? "0")).toBeGreaterThan(0);
+    expect(Number(output.entries[0]?.expectedOnCritOffHand ?? "0")).toBeGreaterThan(0);
     expect(output.entries[0]?.offHandProbabilitySummary.includes("hit")).toBe(true);
     expect(output.entries[0]?.templateSummary).toBe("主手 + 副手");
   });

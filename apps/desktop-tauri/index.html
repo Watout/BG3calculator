@@ -5,10 +5,39 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tauri + React + Typescript</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: #0b0f13;
+        color: #e5edf6;
+        font-family: "IBM Plex Sans", "Source Sans 3", sans-serif;
+      }
+
+      #root {
+        min-height: 100%;
+        display: grid;
+      }
+
+      #boot-splash {
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        color: rgba(229, 237, 246, 0.82);
+        letter-spacing: 0.01em;
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <p id="boot-splash">加载中...</p>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

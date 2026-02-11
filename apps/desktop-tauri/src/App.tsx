@@ -60,12 +60,12 @@ function cloneEntryWithNewId(entry: Entry): Entry {
 
 function InfoHint({ text }: { readonly text: string }): JSX.Element {
   return (
-    <span className="info-hint" tabIndex={0} aria-label={text}>
+    <button type="button" className="info-hint" aria-label={text}>
       i
       <span role="tooltip" className="info-tip">
         {text}
       </span>
-    </span>
+    </button>
   );
 }
 
@@ -277,6 +277,7 @@ function App(): JSX.Element {
             const entryResult = findEntryResult(result.entries, entry.id);
             const isNormalDamageMode = entry.damageDiceMode === "normal";
             const hasOffHand = entry.offHandDamageExprText.trim().length > 0;
+            const hasResolvedOffHand = entryResult?.hasOffHandStep === true;
 
             return (
               <article key={entry.id} className="entry-card">
@@ -521,7 +522,7 @@ function App(): JSX.Element {
                   <label>
                     <LabelWithInfo
                       title="重击阈值"
-                      info="默认 20+；可降到 19+/18+/17+。重击时仅翻倍骰子。"
+                      info="范围 10+ 到 20+。重击时伤害骰子X2。"
                     />
                     <select
                       value={entry.criticalThresholdText}
@@ -535,6 +536,13 @@ function App(): JSX.Element {
                       <option value="19">19+</option>
                       <option value="18">18+</option>
                       <option value="17">17+</option>
+                      <option value="16">16+</option>
+                      <option value="15">15+</option>
+                      <option value="14">14+</option>
+                      <option value="13">13+</option>
+                      <option value="12">12+</option>
+                      <option value="11">11+</option>
+                      <option value="10">10+</option>
                     </select>
                   </label>
 
@@ -565,23 +573,39 @@ function App(): JSX.Element {
                   <p>
                     主手每段期望伤害：{entryResult?.expectedMainHand ?? "-"}
                   </p>
-                  <p>副手每段期望伤害：{entryResult?.expectedOffHand ?? "-"}</p>
+                  {hasResolvedOffHand ? (
+                    <p>副手每段期望伤害：{entryResult?.expectedOffHand ?? "-"}</p>
+                  ) : null}
                   <p>
-                    主手命中时期望伤害：
+                    主手命中条件下期望伤害：
                     {entryResult?.expectedOnHitMainHand ?? "-"}
                   </p>
                   <p>
-                    主手重击时期望伤害：
+                    主手重击条件下期望伤害：
                     {entryResult?.expectedOnCritMainHand ?? "-"}
                   </p>
+                  {hasResolvedOffHand ? (
+                    <p>
+                      副手命中条件下期望伤害：
+                      {entryResult?.expectedOnHitOffHand ?? "-"}
+                    </p>
+                  ) : null}
+                  {hasResolvedOffHand ? (
+                    <p>
+                      副手重击条件下期望伤害：
+                      {entryResult?.expectedOnCritOffHand ?? "-"}
+                    </p>
+                  ) : null}
                   <p>
                     主手命中概率：
                     {entryResult?.mainHandProbabilitySummary ?? "-"}
                   </p>
-                  <p>
-                    副手命中概率：
-                    {entryResult?.offHandProbabilitySummary ?? "-"}
-                  </p>
+                  {hasResolvedOffHand ? (
+                    <p>
+                      副手命中概率：
+                      {entryResult?.offHandProbabilitySummary ?? "-"}
+                    </p>
+                  ) : null}
                 </div>
 
                 {index === entries.length - 1 ? (
