@@ -4,7 +4,8 @@ import {
   ReleaseAssetError,
   collectReleaseAssets,
   formatGitHubOutputFiles,
-  isReleaseAsset
+  isReleaseAsset,
+  parseCliArgs
 } from "./release-collect-assets.mjs";
 
 describe("release asset collection script", (): void => {
@@ -13,6 +14,14 @@ describe("release asset collection script", (): void => {
     expect(isReleaseAsset("bg3calculator-macos-universal/app.dmg")).toBe(true);
     expect(isReleaseAsset("bg3calculator-macos-universal/app.app.tar.gz")).toBe(true);
     expect(isReleaseAsset("bg3calculator-macos-universal/notes.txt")).toBe(false);
+  });
+
+  it("ignores a standalone -- argument from pnpm script forwarding", (): void => {
+    expect(parseCliArgs(["--", "--input", "release-assets"])).toEqual({
+      githubOutput: process.env.GITHUB_OUTPUT ?? null,
+      help: false,
+      input: expect.any(String)
+    });
   });
 
   it("collects release assets in stable sorted order", (): void => {

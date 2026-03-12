@@ -46,6 +46,10 @@ export function parseCliArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
 
+    if (value === "--") {
+      continue;
+    }
+
     if (value === "--help" || value === "-h") {
       options.help = true;
       continue;

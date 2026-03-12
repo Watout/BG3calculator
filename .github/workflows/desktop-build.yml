@@ -24,25 +24,12 @@ env:
 
 jobs:
   build-desktop:
-    if: ${{ inputs.target == 'all' || inputs.target == matrix.name }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: windows-x64
-            os: windows-latest
-            rust_targets: x86_64-pc-windows-msvc
-            build_command: pnpm tauri:build:windows
-            artifact_name: bg3calculator-windows-x64
-            artifact_path: apps/desktop-tauri/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**
-          - name: macos-universal
-            os: macos-latest
-            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
-            build_command: pnpm tauri:build:macos:universal
-            artifact_name: bg3calculator-macos-universal
-            artifact_path: apps/desktop-tauri/src-tauri/target/universal-apple-darwin/release/bundle/**
+        include: ${{ fromJson(inputs.target == 'windows-x64' && '[{"name":"windows-x64","os":"windows-latest","rust_targets":"x86_64-pc-windows-msvc","build_command":"pnpm tauri:build:windows","artifact_name":"bg3calculator-windows-x64","artifact_path":"apps/desktop-tauri/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**"}]' || inputs.target == 'macos-universal' && '[{"name":"macos-universal","os":"macos-latest","rust_targets":"aarch64-apple-darwin,x86_64-apple-darwin","build_command":"pnpm tauri:build:macos:universal","artifact_name":"bg3calculator-macos-universal","artifact_path":"apps/desktop-tauri/src-tauri/target/universal-apple-darwin/release/bundle/**"}]' || '[{"name":"windows-x64","os":"windows-latest","rust_targets":"x86_64-pc-windows-msvc","build_command":"pnpm tauri:build:windows","artifact_name":"bg3calculator-windows-x64","artifact_path":"apps/desktop-tauri/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**"},{"name":"macos-universal","os":"macos-latest","rust_targets":"aarch64-apple-darwin,x86_64-apple-darwin","build_command":"pnpm tauri:build:macos:universal","artifact_name":"bg3calculator-macos-universal","artifact_path":"apps/desktop-tauri/src-tauri/target/universal-apple-darwin/release/bundle/**"}]') }}
 
     env:
       CARGO_TERM_COLOR: always

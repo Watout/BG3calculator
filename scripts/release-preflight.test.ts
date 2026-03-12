@@ -9,6 +9,7 @@ import {
   ReleasePreflightError,
   extractCargoPackageVersion,
   formatGitHubOutputs,
+  parseCliArgs,
   parseReleaseTag,
   runReleasePreflight,
   validateVersionAlignment
@@ -63,6 +64,14 @@ describe("release preflight script", (): void => {
     expect(parseReleaseTag("0.1.2")).toEqual({
       isPrerelease: false,
       version: "0.1.2"
+    });
+  });
+
+  it("ignores a standalone -- argument from pnpm script forwarding", (): void => {
+    expect(parseCliArgs(["--", "--tag", "0.1.2"])).toEqual({
+      cwd: null,
+      help: false,
+      tag: "0.1.2"
     });
   });
 
