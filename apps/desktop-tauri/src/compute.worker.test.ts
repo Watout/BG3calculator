@@ -255,6 +255,39 @@ describe("compute worker attack plan", (): void => {
     );
   });
 
+  it("supports unbounded repeat and template counts by scaling per-step expectations", (): void => {
+    const output = computeAttackPlan(
+      makeInput({
+        entries: [
+          makeEntry({
+            mainHandRepeatText: "37",
+            offHandDamageExprText: "1d6+2",
+            offHandRepeatText: "41"
+          })
+        ],
+        planCountText: "125"
+      })
+    );
+
+    expect(output.ok).toBe(true);
+    if (!output.ok) {
+      return;
+    }
+
+    const entry = output.entries[0];
+    expect(entry?.mainHandRepeat).toBe(37);
+    expect(entry?.offHandRepeat).toBe(41);
+    expect(Number(entry?.expectedMainHandTotal ?? "0")).toBeCloseTo(
+      Number(entry?.expectedMainHand ?? "0") * 37,
+      4
+    );
+    expect(Number(entry?.expectedOffHandTotal ?? "0")).toBeCloseTo(
+      Number(entry?.expectedOffHand ?? "0") * 41,
+      4
+    );
+    expect(Number(output.expectedTotal)).toBeCloseTo(Number(output.expectedPerPlan) * 125, 4);
+  });
+
   it("keeps guaranteed critical totals independent from normal expected totals", (): void => {
     const output = computeAttackPlan(
       makeInput({
@@ -309,7 +342,7 @@ describe("compute worker attack plan", (): void => {
       makeInput({
         entries: [
           makeEntry({
-            mainHandRepeatText: "21"
+            mainHandRepeatText: "0"
           })
         ]
       })
@@ -320,7 +353,32 @@ describe("compute worker attack plan", (): void => {
       return;
     }
 
-    expect(output.errorMessage).toContain("主手执行次数必须在 1 到 20 之间");
+    expect(output.errorMessage).toContain("主手执行次数必须是大于等于 1 的有限整数");
+  });
+
+  it("accepts a critical threshold of 1 while preserving the natural-1 auto-miss", (): void => {
+    const output = computeAttackPlan(
+      makeInput({
+        entries: [
+          makeEntry({
+            criticalThresholdText: "1"
+          })
+        ]
+      })
+    );
+
+    expect(output.ok).toBe(true);
+    if (!output.ok) {
+      return;
+    }
+
+    const entry = output.entries[0];
+    expect(Number(entry?.expectedPerEntry ?? "0")).toBeCloseTo(
+      Number(entry?.expectedOnCritMainHand ?? "0") * 0.95,
+      4
+    );
+    expect(entry?.mainHandProbabilitySummary).toContain("miss 5.00%");
+    expect(entry?.mainHandProbabilitySummary).toContain("crit 95.00%");
   });
 
   it("returns field-scoped error with entry index", (): void => {

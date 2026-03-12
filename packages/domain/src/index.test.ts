@@ -60,6 +60,14 @@ describe("domain attack probabilities", (): void => {
     expect(result.miss).toBeCloseTo(0.45, 10);
   });
 
+  it("treats a critical threshold of 1 as 95% crit because natural 1 still misses", (): void => {
+    const result = calculateSingleRollAttackProbabilities(30, 0, 1);
+
+    expect(result.critical).toBeCloseTo(0.95, 10);
+    expect(result.hit).toBeCloseTo(0, 10);
+    expect(result.miss).toBeCloseTo(0.05, 10);
+  });
+
   it("supports custom critical threshold like 19-20", (): void => {
     const result = calculateAttackOutcomeProbabilities(
       makeAttack({

@@ -1,16 +1,15 @@
 import { tryParseDiceExpression, type ParsedDiceExpression } from "@bg3dc/dice-parser";
+import { calculateAttackDamage } from "@bg3dc/domain";
 import {
+  applyEffects,
   bg3AttackRules,
   makeAttackBonusEffect,
   makeCriticalThresholdEffect,
   makeDamageDiceRollModeEffect,
   makeDamageRollCountEffect,
-  makeDualWieldTemplate,
   makeHalflingLuckyEffect,
-  resolveBg3AttackTemplate,
   summarizeProbabilities
 } from "@bg3dc/rulesets";
-import { MAX_REPEAT_COUNT } from "./inputHistory";
 
 export type AdvantageState = "normal" | "advantage" | "disadvantage";
 export type DamageDiceMode = "normal" | "advantage" | "disadvantage";
@@ -94,11 +93,11 @@ function validateRepeatText(
   label: string
 ): number | ComputeFailure {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 1 || parsed > MAX_REPEAT_COUNT) {
-    return asFailure(requestId, `${label}执行次数必须在 1 到 ${MAX_REPEAT_COUNT} 之间`);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return asFailure(requestId, `${label}执行次数必须是大于等于 1 的有限整数`);
   }
 
-  return Math.max(1, Math.min(MAX_REPEAT_COUNT, Math.floor(parsed)));
+  return Math.max(1, Math.floor(parsed));
 }
 
 function calculateGuaranteedCriticalExpected(
@@ -106,21 +105,6 @@ function calculateGuaranteedCriticalExpected(
   repeat: number
 ): number {
   return expectedOnCritical * repeat;
-}
-
-function calculateGuaranteedCriticalExpectedForSteps(
-  steps: readonly {
-    readonly repeat: number;
-    readonly result: {
-      readonly expectedDamageOnCritical: number;
-    };
-  }[]
-): number {
-  return steps.reduce(
-    (total, step) =>
-      total + calculateGuaranteedCriticalExpected(step.result.expectedDamageOnCritical, step.repeat),
-    0
-  );
 }
 
 interface ComputedEntryInternal {
@@ -169,10 +153,10 @@ function computeOneEntry(
   const parsedCriticalThreshold = Number(entry.criticalThresholdText);
   if (
     !Number.isFinite(parsedCriticalThreshold) ||
-    parsedCriticalThreshold < 10 ||
+    parsedCriticalThreshold < 1 ||
     parsedCriticalThreshold > 20
   ) {
-    return asFailure(requestId, `${label}重击阈值必须在 10 到 20 之间`);
+    return asFailure(requestId, `${label}重击阈值必须在 1 到 20 之间`);
   }
 
   const effectiveRollCount =
@@ -180,7 +164,7 @@ function computeOneEntry(
       ? 1
       : Math.max(2, Math.min(5, Math.floor(parsedRollCount)));
 
-  const safeCriticalThreshold = Math.max(10, Math.min(20, Math.floor(parsedCriticalThreshold)));
+  const safeCriticalThreshold = Math.max(1, Math.min(20, Math.floor(parsedCriticalThreshold)));
 
   const offHandText = entry.offHandDamageExprText.trim();
   let parsedOffHandDamageValue: ParsedDiceExpression | null = null;
@@ -235,54 +219,52 @@ function computeOneEntry(
     }
   };
 
-  let template = makeDualWieldTemplate({
-    mainHandEffects: sharedEffects,
-    mainHandRepeat
+  const mainHandContext = applyEffects(baseContext, sharedEffects);
+  const mainHandResult = calculateAttackDamage({
+    attack: mainHandContext.attack,
+    damage: mainHandContext.damage
   });
   let useOffHand = false;
+  let offHandResult: ReturnType<typeof calculateAttackDamage> | null = null;
 
   if (parsedOffHandDamageValue !== null) {
     useOffHand = true;
-    template = makeDualWieldTemplate({
-      mainHandEffects: sharedEffects,
-      offHandEffects: sharedEffects,
-      offHandAttackPatch: {
-        attackBonusExpression: parsedOffHandAttackBonusExpressionValue ?? parsedMainHandAttackBonusExpression.value
+    const offHandContext = applyEffects({
+      attack: {
+        ...baseContext.attack,
+        attackBonusExpression:
+          parsedOffHandAttackBonusExpressionValue ?? parsedMainHandAttackBonusExpression.value
       },
-      offHandDamagePatch: {
+      damage: {
+        ...baseContext.damage,
         expression: parsedOffHandDamageValue
-      },
-      mainHandRepeat,
-      offHandRepeat
+      }
+    }, sharedEffects);
+
+    offHandResult = calculateAttackDamage({
+      attack: offHandContext.attack,
+      damage: offHandContext.damage
     });
   }
 
-  const resolved = resolveBg3AttackTemplate(baseContext, template);
-  const mainHandStep = resolved.steps.find((step) => step.step.id === "main-hand");
-  const offHandStep = resolved.steps.find((step) => step.step.id === "off-hand");
+  const resolvedMainHandRepeat = mainHandRepeat;
+  const resolvedOffHandRepeat = useOffHand ? offHandRepeat : 0;
 
-  const resolvedMainHandRepeat = mainHandStep?.repeat ?? mainHandRepeat;
-  const resolvedOffHandRepeat = offHandStep?.repeat ?? 0;
-
-  const expectedMainHandValue = mainHandStep?.result.expectedDamagePerAttack ?? 0;
-  const expectedOffHandValue = offHandStep?.result.expectedDamagePerAttack ?? 0;
+  const expectedMainHandValue = mainHandResult.expectedDamagePerAttack;
+  const expectedOffHandValue = offHandResult?.expectedDamagePerAttack ?? 0;
   const expectedMainHandTotalValue = expectedMainHandValue * resolvedMainHandRepeat;
   const expectedOffHandTotalValue = expectedOffHandValue * resolvedOffHandRepeat;
-  const expectedPerEntryValue = resolved.totalResult.expectedDamagePerPlan;
-  const expectedOnHitMainHandValue = mainHandStep?.result.expectedDamageOnHit ?? 0;
-  const expectedOnCritMainHandValue = mainHandStep?.result.expectedDamageOnCritical ?? 0;
-  const expectedOnHitOffHandValue = offHandStep?.result.expectedDamageOnHit ?? 0;
-  const expectedOnCritOffHandValue = offHandStep?.result.expectedDamageOnCritical ?? 0;
-  const mainProbabilities = mainHandStep?.result.probabilities ?? {
-    miss: 1,
-    hit: 0,
-    critical: 0
-  };
-  const offHandProbabilities = offHandStep?.result.probabilities ?? null;
+  const expectedPerEntryValue = expectedMainHandTotalValue + expectedOffHandTotalValue;
+  const expectedOnHitMainHandValue = mainHandResult.expectedDamageOnHit;
+  const expectedOnCritMainHandValue = mainHandResult.expectedDamageOnCritical;
+  const expectedOnHitOffHandValue = offHandResult?.expectedDamageOnHit ?? 0;
+  const expectedOnCritOffHandValue = offHandResult?.expectedDamageOnCritical ?? 0;
+  const mainProbabilities = mainHandResult.probabilities;
+  const offHandProbabilities = offHandResult?.probabilities ?? null;
 
-  const fullCritExpectedPerEntryValue = calculateGuaranteedCriticalExpectedForSteps(
-    resolved.steps
-  );
+  const fullCritExpectedPerEntryValue =
+    calculateGuaranteedCriticalExpected(expectedOnCritMainHandValue, resolvedMainHandRepeat) +
+    calculateGuaranteedCriticalExpected(expectedOnCritOffHandValue, resolvedOffHandRepeat);
 
   const templateSummary = useOffHand ? "主手 + 副手" : "副手留空，已回退为仅主手";
 
@@ -318,7 +300,7 @@ export function computeAttackPlan(input: ComputeInput): ComputeOutput {
 
   const parsedPlanCount = Number(input.planCountText);
   if (!Number.isFinite(parsedPlanCount) || parsedPlanCount < 1) {
-    return asFailure(input.requestId, "模板执行次数必须是大于等于 1 的数字");
+    return asFailure(input.requestId, "模板执行次数必须是大于等于 1 的有限整数");
   }
 
   const safePlanCount = Math.max(1, parseIntegerText(input.planCountText));

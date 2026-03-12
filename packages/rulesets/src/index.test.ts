@@ -113,6 +113,15 @@ describe("rulesets effect system", (): void => {
     expect(withThreshold19.result.probabilities.critical).toBeGreaterThan(normal.result.probabilities.critical);
   });
 
+  it("supports a 1+ critical threshold while keeping natural 1 as an auto-miss", (): void => {
+    const base = makeBaseContext();
+    const withThreshold1 = resolveBg3Attack(base, [makeCriticalThresholdEffect("crit-1", 1)]);
+
+    expect(withThreshold1.result.probabilities.critical).toBeCloseTo(0.95, 10);
+    expect(withThreshold1.result.probabilities.hit).toBeCloseTo(0, 10);
+    expect(withThreshold1.result.probabilities.miss).toBeCloseTo(0.05, 10);
+  });
+
   it("applies halfling lucky effect", (): void => {
     const base = makeBaseContext();
     const normal = resolveBg3Attack(base, []);

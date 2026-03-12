@@ -111,9 +111,10 @@ export function calculateSingleRollAttackProbabilities(
   attackBonus: number,
   criticalThreshold: number
 ): AttackOutcomeProbabilities {
-  const threshold = armorClass - attackBonus;
-  const critChance = clamp01((21 - criticalThreshold) / 20);
-  const nonCritChance = clamp01(Math.max(0, criticalThreshold - Math.max(2, threshold)) / 20);
+  const hitStartFace = Math.max(2, armorClass - attackBonus);
+  const critStartFace = Math.max(2, Math.min(20, Math.floor(criticalThreshold)));
+  const critChance = clamp01((21 - critStartFace) / 20);
+  const nonCritChance = clamp01(Math.max(0, critStartFace - hitStartFace) / 20);
 
   return {
     miss: clamp01(1 - critChance - nonCritChance),

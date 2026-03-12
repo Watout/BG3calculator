@@ -59,7 +59,7 @@ describe("App attack entry controls", (): void => {
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
-  it("uses the compact repeat dropdown and closes it after selection or dismissal", (): void => {
+  it("uses the compact repeat dropdown, slides its numeric window, and closes it after selection or dismissal", (): void => {
     render(<App />);
 
     const trigger = screen.getByRole("button", { name: "攻击项 1 主手执行次数" });
@@ -68,9 +68,11 @@ describe("App attack entry controls", (): void => {
 
     fireEvent.click(trigger);
     let listbox = screen.getByRole("listbox", { name: "攻击项 1 主手执行次数" });
-    fireEvent.click(within(listbox).getByRole("option", { name: "8" }));
+    fireEvent.wheel(listbox, { deltaY: 720 });
+    listbox = screen.getByRole("listbox", { name: "攻击项 1 主手执行次数" });
+    fireEvent.click(within(listbox).getByRole("option", { name: "25" }));
     expect(screen.queryByRole("listbox", { name: "攻击项 1 主手执行次数" })).toBeNull();
-    expect(trigger.textContent).toContain("8");
+    expect(trigger.textContent).toContain("25");
 
     fireEvent.click(trigger);
     expect(screen.getByRole("listbox", { name: "攻击项 1 主手执行次数" })).not.toBeNull();
@@ -84,7 +86,7 @@ describe("App attack entry controls", (): void => {
     expect(screen.queryByRole("listbox", { name: "攻击项 1 主手执行次数" })).toBeNull();
   });
 
-  it("keeps off-hand repeat visible, leaves template repeat native, and removes attack bonus extra dropdowns", (): void => {
+  it("keeps off-hand repeat visible, uses compact dropdowns for template repeat and critical threshold, and removes attack bonus extra dropdowns", (): void => {
     render(<App />);
 
     const mainHandField = getFieldShellByInputLabel("攻击项 1 主手伤害骰表达式");
@@ -103,8 +105,33 @@ describe("App attack entry controls", (): void => {
     ]);
     expect(mainTrailing.textContent).toContain("主手执行");
     expect(screen.getByRole("button", { name: "攻击项 1 副手执行次数" })).not.toBeNull();
-    expect(screen.getByRole("combobox", { name: "模板执行次数" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "模板执行次数" })).not.toBeNull();
+    expect(screen.queryByRole("combobox", { name: "模板执行次数" })).toBeNull();
+    expect(screen.getByRole("button", { name: "攻击项 1 重击阈值" })).not.toBeNull();
+    expect(screen.queryByRole("combobox", { name: "攻击项 1 重击阈值" })).toBeNull();
     expect(mainAttackBonusField.querySelector(".compact-dropdown")).toBeNull();
     expect(within(offHandField).getByText("副手执行")).not.toBeNull();
+  });
+
+  it("slides the template repeat and critical threshold dropdown windows", (): void => {
+    render(<App />);
+
+    const planTrigger = screen.getByRole("button", { name: "模板执行次数" });
+    fireEvent.click(planTrigger);
+    let listbox = screen.getByRole("listbox", { name: "模板执行次数" });
+    fireEvent.wheel(listbox, { deltaY: 720 });
+    listbox = screen.getByRole("listbox", { name: "模板执行次数" });
+    fireEvent.click(within(listbox).getByRole("option", { name: "25" }));
+    expect(screen.queryByRole("listbox", { name: "模板执行次数" })).toBeNull();
+    expect(planTrigger.textContent).toContain("25");
+
+    const criticalTrigger = screen.getByRole("button", { name: "攻击项 1 重击阈值" });
+    fireEvent.click(criticalTrigger);
+    listbox = screen.getByRole("listbox", { name: "攻击项 1 重击阈值" });
+    fireEvent.wheel(listbox, { deltaY: -240 });
+    listbox = screen.getByRole("listbox", { name: "攻击项 1 重击阈值" });
+    fireEvent.click(within(listbox).getByRole("option", { name: "1+" }));
+    expect(screen.queryByRole("listbox", { name: "攻击项 1 重击阈值" })).toBeNull();
+    expect(criticalTrigger.textContent).toContain("1+");
   });
 });

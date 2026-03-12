@@ -320,7 +320,7 @@ export function makeDamageDiceRollModeEffect(id: string, mode: DamageDiceRollMod
 }
 
 function normalizeCriticalThreshold(threshold: number): number {
-  return Math.max(17, Math.min(20, Math.floor(threshold)));
+  return Math.max(1, Math.min(20, Math.floor(threshold)));
 }
 
 function buildCriticalFaces(threshold: number): readonly number[] {

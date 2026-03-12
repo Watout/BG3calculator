@@ -1,5 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { JSX, ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { JSX, ReactNode, UIEvent, WheelEvent } from "react";
 import "./App.css";
 import type {
   AttackPlanEntryInput,
@@ -7,11 +7,19 @@ import type {
   ComputeInput,
   ComputeOutput,
 } from "./compute.worker";
+import { commitHistoryValue, isExpressionHistoryValue } from "./inputHistory";
 import {
-  REPEAT_OPTIONS,
-  commitHistoryValue,
-  isExpressionHistoryValue,
-} from "./inputHistory";
+  buildCompactNumericWindow,
+  COMPACT_MENU_VISIBLE_ITEMS,
+  COMPACT_OPTION_HEIGHT_PX,
+  MAX_CRITICAL_THRESHOLD,
+  MIN_CRITICAL_THRESHOLD,
+  MIN_REPEAT_COUNT,
+  getCompactNumericWindowValues,
+  normalizeCompactNumericValue,
+  shiftCompactNumericWindow,
+  type CompactNumericWindowConfig,
+} from "./compactNumericWindow";
 
 interface UiResult {
   readonly expectedPerPlan: string;
@@ -29,17 +37,15 @@ type HistoryKey =
   | "offHandAttackBonusExprText";
 type HistoryState = Readonly<Record<HistoryKey, readonly string[]>>;
 
-interface CompactDropdownOption {
-  readonly value: string;
-  readonly label: string;
-}
-
-interface CompactDropdownProps {
+interface CompactNumericDropdownProps {
   readonly ariaLabel: string;
   readonly className?: string;
   readonly disabled?: boolean;
+  readonly formatLabel?: (value: number) => string;
+  readonly id?: string;
+  readonly max?: number;
+  readonly min?: number;
   readonly onChange: (value: string) => void;
-  readonly options: readonly CompactDropdownOption[];
   readonly value: string;
 }
 
@@ -93,19 +99,27 @@ const EMPTY_HISTORY: HistoryState = {
   offHandAttackBonusExprText: [],
 };
 
-const REPEAT_DROPDOWN_OPTIONS: readonly CompactDropdownOption[] = REPEAT_OPTIONS.map(
-  (value) => ({
-    value,
-    label: value,
-  }),
-);
-
 const HISTORY_VALIDATORS: Readonly<Record<HistoryKey, (value: string) => boolean>> = {
   mainHandDamageExprText: isExpressionHistoryValue,
   offHandDamageExprText: isExpressionHistoryValue,
   mainHandAttackBonusExprText: isExpressionHistoryValue,
   offHandAttackBonusExprText: isExpressionHistoryValue,
 };
+
+function formatPlainNumber(value: number): string {
+  return `${value}`;
+}
+
+function formatCriticalThreshold(value: number): string {
+  return `${value}+`;
+}
+
+function resolveWindowScrollAnchor(itemCount: number): number {
+  return Math.max(
+    0,
+    Math.floor((itemCount - COMPACT_MENU_VISIBLE_ITEMS) / 2) * COMPACT_OPTION_HEIGHT_PX,
+  );
+}
 
 function makeDefaultEntry(): Entry {
   return {
@@ -284,27 +298,112 @@ function HistoryTextInput({
   );
 }
 
-function CompactDropdown({
+function CompactNumericDropdown({
   ariaLabel,
   className,
   disabled = false,
+  formatLabel = formatPlainNumber,
+  id,
+  max,
+  min = MIN_REPEAT_COUNT,
   onChange,
-  options,
   value,
-}: CompactDropdownProps): JSX.Element {
+}: CompactNumericDropdownProps): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
+  const windowConfig = useMemo<CompactNumericWindowConfig>(
+    () => ({
+      min,
+      max,
+    }),
+    [max, min],
+  );
+  const selectedValue = normalizeCompactNumericValue(value, windowConfig);
+  const [windowStart, setWindowStart] = useState(() =>
+    buildCompactNumericWindow(value, windowConfig).start,
+  );
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const pendingScrollTopRef = useRef<number | null>(null);
 
   useDismissiblePopup(isOpen, rootRef, () => setIsOpen(false));
 
-  const selectedOption = options.find((option) => option.value === value);
-  const resolvedLabel = selectedOption?.label ?? value;
+  useEffect(() => {
+    const nextWindow = buildCompactNumericWindow(value, windowConfig);
+    if (isOpen) {
+      pendingScrollTopRef.current = nextWindow.initialScrollTop;
+    }
+    setWindowStart(nextWindow.start);
+  }, [isOpen, value, windowConfig]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || menuRef.current === null) {
+      return;
+    }
+
+    const pendingScrollTop = pendingScrollTopRef.current;
+    if (pendingScrollTop === null) {
+      return;
+    }
+
+    menuRef.current.scrollTop = pendingScrollTop;
+    pendingScrollTopRef.current = null;
+  }, [isOpen, windowStart]);
+
+  const renderedValues = useMemo(
+    () => getCompactNumericWindowValues(windowStart, windowConfig),
+    [windowConfig, windowStart],
+  );
+
+  const shiftWindow = (delta: number): void => {
+    if (delta === 0) {
+      return;
+    }
+
+    const nextStart = shiftCompactNumericWindow(windowStart, delta, windowConfig);
+    if (nextStart === windowStart) {
+      return;
+    }
+
+    pendingScrollTopRef.current = resolveWindowScrollAnchor(renderedValues.length);
+    setWindowStart(nextStart);
+  };
+
+  const handleWheel = (event: WheelEvent<HTMLDivElement>): void => {
+    if (event.deltaY === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    const steps = Math.max(1, Math.round(Math.abs(event.deltaY) / COMPACT_OPTION_HEIGHT_PX));
+    shiftWindow(event.deltaY > 0 ? steps : -steps);
+  };
+
+  const handleScroll = (event: UIEvent<HTMLDivElement>): void => {
+    if (renderedValues.length <= COMPACT_MENU_VISIBLE_ITEMS) {
+      return;
+    }
+
+    const listbox = event.currentTarget;
+    const threshold = COMPACT_OPTION_HEIGHT_PX;
+    if (listbox.scrollTop <= threshold) {
+      shiftWindow(-1);
+      return;
+    }
+
+    const bottomThreshold = listbox.scrollHeight - listbox.clientHeight - threshold;
+    if (listbox.scrollTop >= bottomThreshold) {
+      shiftWindow(1);
+    }
+  };
+
+  const resolvedLabel = formatLabel(selectedValue);
   const resolvedClassName =
     className === undefined ? "compact-dropdown" : `compact-dropdown ${className}`;
 
   return (
     <div ref={rootRef} className={resolvedClassName}>
       <button
+        id={id}
         type="button"
         className="compact-select-trigger"
         aria-haspopup="listbox"
@@ -320,21 +419,28 @@ function CompactDropdown({
       </button>
 
       {isOpen ? (
-        <div className="compact-dropdown-menu" role="listbox" aria-label={ariaLabel}>
-          {options.map((option) => (
+        <div
+          ref={menuRef}
+          className="compact-dropdown-menu"
+          role="listbox"
+          aria-label={ariaLabel}
+          onScroll={handleScroll}
+          onWheel={handleWheel}
+        >
+          {renderedValues.map((optionValue) => (
             <button
-              key={option.value}
+              key={optionValue}
               type="button"
-              className={`compact-option${option.value === value ? " selected" : ""}`}
+              className={`compact-option${optionValue === selectedValue ? " selected" : ""}`}
               role="option"
-              aria-selected={option.value === value}
+              aria-selected={optionValue === selectedValue}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
-                onChange(option.value);
+                onChange(`${optionValue}`);
                 setIsOpen(false);
               }}
             >
-              {option.label}
+              {formatLabel(optionValue)}
             </button>
           ))}
         </div>
@@ -377,11 +483,10 @@ export function InlineRepeatControl({
   return (
     <span className="label-repeat-inline">
       <span className="label-repeat-text">{label}</span>
-      <CompactDropdown
+      <CompactNumericDropdown
         ariaLabel={ariaLabel}
         className="entry-repeat-dropdown label-repeat-dropdown"
         value={value}
-        options={REPEAT_DROPDOWN_OPTIONS}
         onChange={onChange}
       />
     </span>
@@ -629,22 +734,13 @@ function App(): JSX.Element {
             title="模板执行次数"
             info="对整套攻击编排重复执行的次数。总期望伤害 = 每轮模板期望伤害 × 模板执行次数。"
           >
-            <select
+            <CompactNumericDropdown
               id="plan-count"
               value={planCountText}
-              onChange={(event) => setPlanCountText(event.currentTarget.value)}
-            >
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-              <option value="5">5</option>
-              <option value="6">6</option>
-              <option value="7">7</option>
-              <option value="8">8</option>
-              <option value="9">9</option>
-              <option value="10">10</option>
-            </select>
+              ariaLabel="模板执行次数"
+              className="field-compact-dropdown"
+              onChange={setPlanCountText}
+            />
           </FieldShell>
         </div>
 
@@ -920,29 +1016,22 @@ function App(): JSX.Element {
                   <FieldShell
                     controlId={criticalThresholdId}
                     title="重击阈值"
-                    info="范围 10+ 到 20+。重击时伤害骰子X2。"
+                    info="范围 1+ 到 20+。天然 1 仍会自动失手，重击时伤害骰子 X2。"
                   >
-                    <select
+                    <CompactNumericDropdown
                       id={criticalThresholdId}
+                      ariaLabel={`攻击项 ${index + 1} 重击阈值`}
+                      className="field-compact-dropdown"
+                      formatLabel={formatCriticalThreshold}
+                      min={MIN_CRITICAL_THRESHOLD}
+                      max={MAX_CRITICAL_THRESHOLD}
                       value={entry.criticalThresholdText}
-                      onChange={(event) =>
+                      onChange={(nextValue) =>
                         updateEntry(entry.id, {
-                          criticalThresholdText: event.currentTarget.value,
+                          criticalThresholdText: nextValue,
                         })
                       }
-                    >
-                      <option value="20">20+</option>
-                      <option value="19">19+</option>
-                      <option value="18">18+</option>
-                      <option value="17">17+</option>
-                      <option value="16">16+</option>
-                      <option value="15">15+</option>
-                      <option value="14">14+</option>
-                      <option value="13">13+</option>
-                      <option value="12">12+</option>
-                      <option value="11">11+</option>
-                      <option value="10">10+</option>
-                    </select>
+                    />
                   </FieldShell>
 
                   <FieldShell

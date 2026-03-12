@@ -267,6 +267,10 @@ body {
   min-width: 72px;
 }
 
+.field-compact-dropdown {
+  width: 100%;
+}
+
 .entry-repeat-dropdown {
   width: 60px;
 }
@@ -422,6 +426,8 @@ select {
   min-width: 100%;
   max-height: calc(var(--compact-option-height) * 8);
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: 4px;
   border: 1px solid rgba(129, 173, 217, 0.35);
   border-radius: 9px;
