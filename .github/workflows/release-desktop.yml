@@ -1,0 +1,153 @@
+name: release-desktop
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: verify-workspace
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        shell: pwsh
+
+      - name: Verify workspace
+        run: |
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+        shell: pwsh
+
+  build-desktop:
+    name: build-${{ matrix.name }}
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            rust_targets: x86_64-pc-windows-msvc
+            build_command: pnpm tauri:build:windows
+            artifact_name: bg3calculator-windows-x64
+            artifact_path: apps/desktop-tauri/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**
+          - name: macos-universal
+            os: macos-latest
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            build_command: pnpm tauri:build:macos:universal
+            artifact_name: bg3calculator-macos-universal
+            artifact_path: apps/desktop-tauri/src-tauri/target/universal-apple-darwin/release/bundle/**
+
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Cache Rust artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop-tauri/src-tauri -> target
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        shell: pwsh
+
+      - name: Build desktop app
+        run: ${{ matrix.build_command }}
+        shell: pwsh
+
+      - name: Upload desktop bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          if-no-files-found: error
+          compression-level: 0
+          path: ${{ matrix.artifact_path }}
+
+  publish-release:
+    name: publish-release
+    needs: build-desktop
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download bundled artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Collect release files
+        id: collect
+        run: |
+          $files = Get-ChildItem release-assets -Recurse -File | Where-Object {
+            $_.Name -like '*.msi' -or
+            $_.Name -like '*.exe' -or
+            $_.Name -like '*.dmg' -or
+            $_.Name -like '*.zip' -or
+            $_.Name -like '*.sig' -or
+            $_.Name -like '*.app.tar.gz'
+          } | Sort-Object FullName | Select-Object -ExpandProperty FullName
+
+          if (-not $files) {
+            throw 'No release files were found in the downloaded artifacts.'
+          }
+
+          $outputLines = @('files<<EOF')
+          $outputLines += $files
+          $outputLines += 'EOF'
+          $outputLines | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          $files
+        shell: pwsh
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.collect.outputs.files }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

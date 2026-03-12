@@ -1,0 +1,151 @@
+# BG3calculator 的 Codex 本地接入与 Release 流程
+
+## 1. 目标
+
+本文件约定两件事：
+
+- 如何把 Codex 作为本地开发助手接入当前仓库。
+- 如何使用仓库内的 GitHub Actions 完成 PR 校验与 tag 自动发布。
+
+当前仓库的现状：
+
+- 包管理器：`pnpm@10.32.1`
+- 工作区：`apps/*` + `packages/*`
+- 桌面应用：`apps/desktop-tauri`
+- 根级校验入口：`pnpm lint`、`pnpm typecheck`、`pnpm test`
+- 手动桌面构建：`.github/workflows/desktop-build.yml`
+
+---
+
+## 2. 本地接入 Codex
+
+官方资料：
+
+- Codex CLI 入门：<https://help.openai.com/en/articles/11096431-openai-codex-ci-getting-started>
+- ChatGPT 方案接入 Codex：<https://help.openai.com/en/articles/11369540/>
+
+已知前提：
+
+- Codex CLI 官方当前仍将 Windows 视为实验性支持；如果本机 CLI 异常，优先改用 VS Code 的 Codex 扩展，或在 WSL 中运行 CLI。
+- 本仓库自己的命令入口仍以 PowerShell 7 / `pwsh.exe` 为准。
+
+推荐接入顺序：
+
+1. 安装 Codex CLI
+2. 登录 ChatGPT 或 API Key
+3. 在仓库根目录启动 Codex
+4. 用根级校验命令约束 Codex 的修改结果
+
+### 2.1 安装与登录
+
+如果你已经配置好了 `pnpm` 全局目录，可以直接安装：
+
+```powershell
+pwsh.exe -NoProfile -Command "pnpm add -g @openai/codex"
+```
+
+如果你不想做全局安装，也可以临时执行最新版：
+
+```powershell
+pwsh.exe -NoProfile -Command "corepack pnpm dlx @openai/codex@latest --help"
+```
+
+登录推荐优先使用 ChatGPT 账号：
+
+```powershell
+pwsh.exe -NoProfile -Command "codex login"
+```
+
+如果你要使用 API Key，则先设置环境变量：
+
+```powershell
+pwsh.exe -NoProfile -Command "$env:OPENAI_API_KEY = '<your-api-key>'"
+```
+
+### 2.2 在本仓库中的推荐用法
+
+在仓库根目录启动：
+
+```powershell
+pwsh.exe -NoProfile -Command "codex"
+```
+
+首轮提示词建议直接围绕仓库事实展开，例如：
+
+- `Explain this pnpm monorepo and the dependency direction between apps and packages.`
+- `Implement the feature, then run pnpm lint, pnpm typecheck, and pnpm test.`
+- `Review the current GitHub workflows and suggest the smallest safe release improvement.`
+
+本仓库与 Codex 配合时，统一要求 Codex 以根级命令做验收：
+
+```powershell
+pwsh.exe -NoProfile -Command "pnpm lint"
+pwsh.exe -NoProfile -Command "pnpm typecheck"
+pwsh.exe -NoProfile -Command "pnpm test"
+```
+
+---
+
+## 3. 仓库内的 CI / CD 约定
+
+新增后的工作流职责如下：
+
+- `/.github/workflows/ci.yml`
+  - 触发：`pull_request`、推送到 `main`
+  - 作用：运行 `pnpm lint`、`pnpm typecheck`、`pnpm test`
+- `/.github/workflows/release-desktop.yml`
+  - 触发：推送语义化 tag，例如 `v0.1.0`
+  - 作用：先校验仓库，再分别构建 Windows 和 macOS Universal 安装包，并发布到 GitHub Release
+- `/.github/workflows/desktop-build.yml`
+  - 保留为手动构建入口，用于开发测试或远程 macOS 构建脚本调用
+
+### 3.1 日常开发流程
+
+推荐流程：
+
+1. 在本地分支里使用 Codex 辅助开发。
+2. 本地先跑：
+
+```powershell
+pwsh.exe -NoProfile -Command "pnpm lint"
+pwsh.exe -NoProfile -Command "pnpm typecheck"
+pwsh.exe -NoProfile -Command "pnpm test"
+```
+
+3. 推送分支并发起 PR。
+4. 等待 `ci` workflow 通过后再合并。
+
+### 3.2 发布流程
+
+当你准备发布时：
+
+```powershell
+pwsh.exe -NoProfile -Command "git tag v0.1.0"
+pwsh.exe -NoProfile -Command "git push origin v0.1.0"
+```
+
+随后 GitHub Actions 会自动：
+
+1. 校验工作区
+2. 构建 Windows x64 安装包
+3. 构建 macOS Universal 安装包
+4. 创建同名 GitHub Release
+5. 上传桌面端产物作为 Release Assets
+
+### 3.3 当前默认假设
+
+- 当前发布产物为未签名桌面包，适合开发测试与内部使用。
+- macOS notarization、Windows 签名暂未接入；后续若要分发给更广泛用户，再补 secrets 与签名步骤。
+- Release 触发规则默认使用 `v*.*.*` tag。
+
+---
+
+## 4. 对应文件入口
+
+最值得先看的文件：
+
+- 根工作区脚本：`/package.json`
+- 手动桌面构建：`/.github/workflows/desktop-build.yml`
+- 常规 CI：`/.github/workflows/ci.yml`
+- 自动发布：`/.github/workflows/release-desktop.yml`
+- Tauri 打包配置：`/apps/desktop-tauri/src-tauri/tauri.conf.json`
