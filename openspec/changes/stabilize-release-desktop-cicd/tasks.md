@@ -1,0 +1,5 @@
+- [x] Add a release preflight script that validates no-leading-`v` semantic tags against all desktop version declarations.
+- [x] Add a release asset collection script that verifies required build outputs and emits GitHub Actions output safely.
+- [x] Update the desktop release workflow to use the new scripts and update existing GitHub Releases for matching tags.
+- [x] Add automated tests for tag validation, version alignment, asset collection, and GitHub output formatting.
+- [x] Sync README, `docsforcodex`, and openspec with the repository's no-leading-`v` release contract.

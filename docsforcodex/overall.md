@@ -25,6 +25,7 @@ pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 lint"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 typecheck"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 test"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 tauri:dev"
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:preflight -- --tag 0.1.2"
 ```
 
 桌面端打包命令：
@@ -63,6 +64,12 @@ pnpm tauri:build:macos:universal
 GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm tauri:build:macos:remote` 默认只请求并下载：
 
 - `bg3calculator-macos-universal`
+
+正式发布约定：
+
+- Release tag 使用无 `v` 前缀的语义化版本，例如 `0.1.2` 或 `0.1.2-beta.1`
+- 正式推 tag 前先运行 `pnpm release:preflight -- --tag <tag>`，确保根工作区、桌面前端、Tauri 配置与 Cargo 版本一致
+- 推送 tag 后，`release-desktop` workflow 会自动校验、构建 Windows/macOS 桌面包，并更新同名 GitHub Release 资产
 
 如果后续需要 macOS 签名/公证，再额外补 Apple 证书与 notarization secrets 即可；当前流程先输出未签名安装包，便于开发测试与内部分发，workflow 输入和文档结构也已经为后续接入签名链路预留了位置。
 

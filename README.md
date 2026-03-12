@@ -87,13 +87,19 @@ pwsh.exe -NoProfile -Command "$env:GH_TOKEN = '<github-token>'; pnpm tauri:build
 
 - `ci`: 在 `pull_request` 和推送到 `main` 时运行 `lint`、`typecheck`、`test`。
 - `desktop-build`: 手动触发桌面构建，可用于开发测试与远程 macOS 构建脚本调用。
-- `release-desktop`: 推送 `v*.*.*` tag 时构建 Windows / macOS 安装包并发布 GitHub Release。
+- `release-desktop`: 推送无 `v` 前缀的语义化版本 tag，例如 `0.1.2` 或 `0.1.2-beta.1` 时，先校验版本一致性，再构建 Windows / macOS 安装包并更新同名 GitHub Release。
+
+正式发布前可以先做本地预检：
+
+```powershell
+pwsh.exe -NoProfile -Command "pnpm release:preflight -- --tag 0.1.2"
+```
 
 发布示例：
 
 ```powershell
-pwsh.exe -NoProfile -Command "git tag v0.1.0"
-pwsh.exe -NoProfile -Command "git push origin v0.1.0"
+pwsh.exe -NoProfile -Command "git tag 0.1.2"
+pwsh.exe -NoProfile -Command "git push origin 0.1.2"
 ```
 
 ## 当前状态

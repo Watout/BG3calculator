@@ -3,7 +3,7 @@ name: release-desktop
 on:
   push:
     tags:
-      - "v*.*.*"
+      - "*.*.*"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -19,6 +19,10 @@ jobs:
   verify:
     name: verify-workspace
     runs-on: ubuntu-latest
+    outputs:
+      is_prerelease: ${{ steps.preflight.outputs.is_prerelease }}
+      release_tag: ${{ steps.preflight.outputs.tag }}
+      release_version: ${{ steps.preflight.outputs.version }}
 
     steps:
       - name: Checkout repository
@@ -40,6 +44,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        shell: pwsh
+
+      - name: Preflight release metadata
+        id: preflight
+        run: pnpm release:preflight -- --tag "${{ github.ref_name }}"
         shell: pwsh
 
       - name: Verify workspace
@@ -119,7 +128,9 @@ jobs:
 
   publish-release:
     name: publish-release
-    needs: build-desktop
+    needs:
+      - verify
+      - build-desktop
     runs-on: ubuntu-latest
 
     steps:
@@ -130,31 +141,16 @@ jobs:
 
       - name: Collect release files
         id: collect
-        run: |
-          $files = Get-ChildItem release-assets -Recurse -File | Where-Object {
-            $_.Name -like '*.msi' -or
-            $_.Name -like '*.exe' -or
-            $_.Name -like '*.dmg' -or
-            $_.Name -like '*.zip' -or
-            $_.Name -like '*.sig' -or
-            $_.Name -like '*.app.tar.gz'
-          } | Sort-Object FullName | Select-Object -ExpandProperty FullName
-
-          if (-not $files) {
-            throw 'No release files were found in the downloaded artifacts.'
-          }
-
-          $outputLines = @('files<<EOF')
-          $outputLines += $files
-          $outputLines += 'EOF'
-          $outputLines | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-          $files
+        run: pnpm release:collect-assets -- --input release-assets
         shell: pwsh
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          fail_on_unmatched_files: true
           files: ${{ steps.collect.outputs.files }}
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          name: ${{ needs.verify.outputs.release_tag }}
+          overwrite_files: true
+          prerelease: ${{ needs.verify.outputs.is_prerelease == 'true' }}
+          tag_name: ${{ needs.verify.outputs.release_tag }}

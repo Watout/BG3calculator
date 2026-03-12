@@ -94,8 +94,8 @@ pwsh.exe -NoProfile -Command "pnpm test"
   - 触发：`pull_request`、推送到 `main`
   - 作用：运行 `pnpm lint`、`pnpm typecheck`、`pnpm test`
 - `/.github/workflows/release-desktop.yml`
-  - 触发：推送语义化 tag，例如 `v0.1.0`
-  - 作用：先校验仓库，再分别构建 Windows 和 macOS Universal 安装包，并发布到 GitHub Release
+  - 触发：推送无 `v` 前缀的语义化 tag，例如 `0.1.2` 或 `0.1.2-beta.1`
+  - 作用：先做 release tag 与版本文件一致性校验，再分别构建 Windows 和 macOS Universal 安装包，并更新同名 GitHub Release
 - `/.github/workflows/desktop-build.yml`
   - 保留为手动构建入口，用于开发测试或远程 macOS 构建脚本调用
 
@@ -120,8 +120,9 @@ pwsh.exe -NoProfile -Command "pnpm test"
 当你准备发布时：
 
 ```powershell
-pwsh.exe -NoProfile -Command "git tag v0.1.0"
-pwsh.exe -NoProfile -Command "git push origin v0.1.0"
+pwsh.exe -NoProfile -Command "pnpm release:preflight -- --tag 0.1.2"
+pwsh.exe -NoProfile -Command "git tag 0.1.2"
+pwsh.exe -NoProfile -Command "git push origin 0.1.2"
 ```
 
 随后 GitHub Actions 会自动：
@@ -136,7 +137,7 @@ pwsh.exe -NoProfile -Command "git push origin v0.1.0"
 
 - 当前发布产物为未签名桌面包，适合开发测试与内部使用。
 - macOS notarization、Windows 签名暂未接入；后续若要分发给更广泛用户，再补 secrets 与签名步骤。
-- Release 触发规则默认使用 `v*.*.*` tag。
+- Release 触发规则默认使用无 `v` 前缀的语义化版本 tag。
 
 ---
 
