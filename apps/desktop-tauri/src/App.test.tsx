@@ -1,78 +1,110 @@
-import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
-import App, { InlineRepeatSelect, LabelWithInfo } from "./App";
+// @vitest-environment happy-dom
 
-function extractMarkupSegment(markup: string, pattern: RegExp): string {
-  const match = markup.match(pattern);
-  if (match === null) {
-    throw new Error(`Expected markup to match ${pattern}`);
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import App from "./App";
+
+afterEach(() => {
+  cleanup();
+});
+
+function getFieldShellByInputLabel(ariaLabel: string): HTMLElement {
+  const control = screen.getByLabelText(ariaLabel);
+  const shell = control.closest(".field-shell");
+  if (!(shell instanceof HTMLElement)) {
+    throw new Error(`Expected ${ariaLabel} to live inside .field-shell`);
   }
 
-  return match[0];
+  return shell;
 }
 
-describe("App attack entry label layout", (): void => {
-  it("renders main-hand repeat control next to the main damage label instead of the entry header", (): void => {
-    const markup = renderToStaticMarkup(<App />);
-    const headerMarkup = extractMarkupSegment(
-      markup,
-      /<header class="entry-head">[\s\S]*?<\/header>/,
-    );
-    const mainHandLabelMarkup = extractMarkupSegment(
-      markup,
-      /<label><span class="label-with-info">[\s\S]*?aria-label="攻击项 1 主手伤害骰表达式"[\s\S]*?<\/label>/,
-    );
+describe("App attack entry controls", (): void => {
+  it("shows tooltip only when hovering or focusing the info icon", (): void => {
+    render(<App />);
 
-    expect(headerMarkup).not.toContain("主手执行");
-    expect(mainHandLabelMarkup).toContain("主手伤害骰表达式");
-    expect(mainHandLabelMarkup).toContain("主手执行");
-    expect(mainHandLabelMarkup).toContain('aria-label="攻击项 1 主手执行次数"');
-    expect(mainHandLabelMarkup).toMatch(
-      /class="label-title">主手伤害骰表达式<\/span><button type="button" class="info-hint"[\s\S]*?<\/button><\/span><span class="label-trailing">[\s\S]*?主手执行[\s\S]*?<select aria-label="攻击项 1 主手执行次数"/,
-    );
+    const mainHandField = getFieldShellByInputLabel("攻击项 1 主手伤害骰表达式");
+    const labelRow = mainHandField.querySelector(".label-with-info");
+    const title = within(mainHandField).getByText("主手伤害骰表达式");
+    const input = within(mainHandField).getByLabelText("攻击项 1 主手伤害骰表达式");
+    const infoButton = within(mainHandField).getByRole("button", {
+      name: "例如 1d8+3、2d6+1。重击时只翻倍骰子部分，不翻倍常数。",
+    });
+
+    if (!(labelRow instanceof HTMLElement)) {
+      throw new Error("Expected .label-with-info to exist");
+    }
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.pointerEnter(labelRow);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.pointerEnter(title);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.pointerEnter(input);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.pointerEnter(infoButton);
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip.textContent).toContain("例如 1d8+3、2d6+1");
+
+    fireEvent.pointerLeave(infoButton);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.focus(infoButton);
+    expect(screen.getByRole("tooltip").textContent).toContain("重击时只翻倍骰子部分");
+
+    fireEvent.blur(infoButton);
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
-  it("keeps off-hand repeat and attack bonus controls visible even when off-hand damage is empty", (): void => {
-    const appMarkup = renderToStaticMarkup(<App />);
-    const offHandLabelMarkup = extractMarkupSegment(
-      appMarkup,
-      /<label><span class="label-with-info">[\s\S]*?aria-label="攻击项 1 副手伤害骰表达式"[\s\S]*?<\/label>/,
-    );
+  it("uses the compact repeat dropdown and closes it after selection or dismissal", (): void => {
+    render(<App />);
 
-    expect(offHandLabelMarkup).toContain("副手执行");
-    expect(offHandLabelMarkup).toContain('aria-label="攻击项 1 副手执行次数"');
-    expect(appMarkup).toContain('aria-label="攻击项 1 副手攻击加值表达式"');
+    const trigger = screen.getByRole("button", { name: "攻击项 1 主手执行次数" });
+
+    expect(screen.queryByRole("combobox", { name: "攻击项 1 主手执行次数" })).toBeNull();
+
+    fireEvent.click(trigger);
+    let listbox = screen.getByRole("listbox", { name: "攻击项 1 主手执行次数" });
+    fireEvent.click(within(listbox).getByRole("option", { name: "8" }));
+    expect(screen.queryByRole("listbox", { name: "攻击项 1 主手执行次数" })).toBeNull();
+    expect(trigger.textContent).toContain("8");
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole("listbox", { name: "攻击项 1 主手执行次数" })).not.toBeNull();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("listbox", { name: "攻击项 1 主手执行次数" })).toBeNull();
+
+    fireEvent.click(trigger);
+    listbox = screen.getByRole("listbox", { name: "攻击项 1 主手执行次数" });
+    expect(listbox).not.toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("listbox", { name: "攻击项 1 主手执行次数" })).toBeNull();
   });
 
-  it("renders attack bonus as a single expression input and keeps tooltip nested under the info icon only", (): void => {
-    const appMarkup = renderToStaticMarkup(<App />);
-    const markup = renderToStaticMarkup(
-      <LabelWithInfo
-        title="主手伤害骰表达式"
-        info="说明文本"
-        trailing={(
-          <InlineRepeatSelect
-            ariaLabel="攻击项 1 主手执行次数"
-            label="主手执行"
-            value="8"
-            onChange={() => undefined}
-          />
-        )}
-      />,
-    );
-    const [beforeInfoHint] = markup.split('<button type="button" class="info-hint"');
+  it("keeps off-hand repeat visible, leaves template repeat native, and removes attack bonus extra dropdowns", (): void => {
+    render(<App />);
 
-    expect(appMarkup).toContain('aria-label="攻击项 1 主手攻击加值表达式"');
-    expect(appMarkup).toContain('aria-label="攻击项 1 副手攻击加值表达式"');
-    expect(appMarkup).not.toContain("主手攻击加值固定值");
-    expect(appMarkup).not.toContain("副手攻击加值固定值");
-    expect(appMarkup).not.toContain(">无</option>");
-    expect(markup).toContain(
-      '<button type="button" class="info-hint" aria-label="说明文本">i<span role="tooltip" class="info-tip">说明文本</span></button>',
-    );
-    expect(markup).toMatch(
-      /class="label-title">主手伤害骰表达式<\/span><button type="button" class="info-hint"[\s\S]*?<\/button><\/span><span class="label-trailing">/,
-    );
-    expect(beforeInfoHint).not.toContain('class="info-tip"');
+    const mainHandField = getFieldShellByInputLabel("攻击项 1 主手伤害骰表达式");
+    const mainHeading = mainHandField.querySelector(".label-heading");
+    const mainTrailing = mainHandField.querySelector(".label-trailing");
+    const offHandField = getFieldShellByInputLabel("攻击项 1 副手伤害骰表达式");
+    const mainAttackBonusField = getFieldShellByInputLabel("攻击项 1 主手攻击加值表达式");
+
+    if (!(mainHeading instanceof HTMLElement) || !(mainTrailing instanceof HTMLElement)) {
+      throw new Error("Expected heading and trailing regions to exist");
+    }
+
+    expect(Array.from(mainHeading.children).map((element) => element.className)).toEqual([
+      "label-title label-title-link",
+      "info-hint",
+    ]);
+    expect(mainTrailing.textContent).toContain("主手执行");
+    expect(screen.getByRole("button", { name: "攻击项 1 副手执行次数" })).not.toBeNull();
+    expect(screen.getByRole("combobox", { name: "模板执行次数" })).not.toBeNull();
+    expect(mainAttackBonusField.querySelector(".compact-dropdown")).toBeNull();
+    expect(within(offHandField).getByText("副手执行")).not.toBeNull();
   });
 });

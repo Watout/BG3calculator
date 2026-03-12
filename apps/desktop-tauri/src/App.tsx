@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import "./App.css";
 import type {
@@ -29,17 +29,32 @@ type HistoryKey =
   | "offHandAttackBonusExprText";
 type HistoryState = Readonly<Record<HistoryKey, readonly string[]>>;
 
+interface CompactDropdownOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+interface CompactDropdownProps {
+  readonly ariaLabel: string;
+  readonly className?: string;
+  readonly disabled?: boolean;
+  readonly onChange: (value: string) => void;
+  readonly options: readonly CompactDropdownOption[];
+  readonly value: string;
+}
+
 interface HistoryTextInputProps {
   readonly ariaLabel: string;
   readonly disabled?: boolean;
   readonly history: readonly string[];
+  readonly id?: string;
   readonly onChange: (value: string) => void;
   readonly onCommit: (value: string) => void;
   readonly placeholder?: string;
   readonly value: string;
 }
 
-interface InlineRepeatSelectProps {
+interface InlineRepeatControlProps {
   readonly ariaLabel: string;
   readonly label: string;
   readonly onChange: (value: string) => void;
@@ -47,6 +62,17 @@ interface InlineRepeatSelectProps {
 }
 
 interface LabelWithInfoProps {
+  readonly controlId?: string;
+  readonly info: string;
+  readonly title: string;
+  readonly trailing?: ReactNode;
+}
+
+interface FieldShellProps {
+  readonly ariaHidden?: boolean;
+  readonly children: ReactNode;
+  readonly className?: string;
+  readonly controlId?: string;
   readonly info: string;
   readonly title: string;
   readonly trailing?: ReactNode;
@@ -66,6 +92,13 @@ const EMPTY_HISTORY: HistoryState = {
   mainHandAttackBonusExprText: [],
   offHandAttackBonusExprText: [],
 };
+
+const REPEAT_DROPDOWN_OPTIONS: readonly CompactDropdownOption[] = REPEAT_OPTIONS.map(
+  (value) => ({
+    value,
+    label: value,
+  }),
+);
 
 const HISTORY_VALIDATORS: Readonly<Record<HistoryKey, (value: string) => boolean>> = {
   mainHandDamageExprText: isExpressionHistoryValue,
@@ -153,6 +186,7 @@ function HistoryTextInput({
   ariaLabel,
   disabled = false,
   history,
+  id,
   onChange,
   onCommit,
   placeholder,
@@ -167,6 +201,7 @@ function HistoryTextInput({
   return (
     <div ref={rootRef} className={`history-input-shell${disabled ? " disabled" : ""}`}>
       <input
+        id={id}
         className="compact-input"
         aria-label={ariaLabel}
         value={value}
@@ -249,57 +284,159 @@ function HistoryTextInput({
   );
 }
 
-function InfoHint({ text }: { readonly text: string }): JSX.Element {
+function CompactDropdown({
+  ariaLabel,
+  className,
+  disabled = false,
+  onChange,
+  options,
+  value,
+}: CompactDropdownProps): JSX.Element {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useDismissiblePopup(isOpen, rootRef, () => setIsOpen(false));
+
+  const selectedOption = options.find((option) => option.value === value);
+  const resolvedLabel = selectedOption?.label ?? value;
+  const resolvedClassName =
+    className === undefined ? "compact-dropdown" : `compact-dropdown ${className}`;
+
   return (
-    <button type="button" className="info-hint" aria-label={text}>
+    <div ref={rootRef} className={resolvedClassName}>
+      <button
+        type="button"
+        className="compact-select-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={() => setIsOpen((previous) => !previous)}
+      >
+        <span className="compact-select-value">{resolvedLabel}</span>
+        <span className="compact-select-icon" aria-hidden="true">
+          {isOpen ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {isOpen ? (
+        <div className="compact-dropdown-menu" role="listbox" aria-label={ariaLabel}>
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`compact-option${option.value === value ? " selected" : ""}`}
+              role="option"
+              aria-selected={option.value === value}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function InfoHint({ text }: { readonly text: string }): JSX.Element {
+  const [isVisible, setIsVisible] = useState(false);
+  const tipId = useId();
+
+  return (
+    <button
+      type="button"
+      className="info-hint"
+      aria-label={text}
+      aria-describedby={isVisible ? tipId : undefined}
+      onPointerEnter={() => setIsVisible(true)}
+      onPointerLeave={() => setIsVisible(false)}
+      onFocus={() => setIsVisible(true)}
+      onBlur={() => setIsVisible(false)}
+    >
       i
-      <span role="tooltip" className="info-tip">
-        {text}
-      </span>
+      {isVisible ? (
+        <span id={tipId} role="tooltip" className="info-tip">
+          {text}
+        </span>
+      ) : null}
     </button>
   );
 }
 
-export function InlineRepeatSelect({
+export function InlineRepeatControl({
   ariaLabel,
   label,
   onChange,
   value,
-}: InlineRepeatSelectProps): JSX.Element {
+}: InlineRepeatControlProps): JSX.Element {
   return (
     <span className="label-repeat-inline">
       <span className="label-repeat-text">{label}</span>
-      <select
-        aria-label={ariaLabel}
-        className="label-repeat-select"
+      <CompactDropdown
+        ariaLabel={ariaLabel}
+        className="entry-repeat-dropdown label-repeat-dropdown"
         value={value}
-        onChange={(event) => onChange(event.currentTarget.value)}
-      >
-        {REPEAT_OPTIONS.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
+        options={REPEAT_DROPDOWN_OPTIONS}
+        onChange={onChange}
+      />
     </span>
   );
 }
 
 export function LabelWithInfo({
+  controlId,
   info,
   title,
   trailing,
 }: LabelWithInfoProps): JSX.Element {
+  const titleNode =
+    controlId === undefined ? (
+      <span className="label-title">{title}</span>
+    ) : (
+      <label className="label-title label-title-link" htmlFor={controlId}>
+        {title}
+      </label>
+    );
+
   return (
     <span className="label-with-info">
       <span className="label-heading">
-        <span className="label-title">{title}</span>
+        {titleNode}
         <InfoHint text={info} />
       </span>
       {trailing === undefined ? null : (
         <span className="label-trailing">{trailing}</span>
       )}
     </span>
+  );
+}
+
+function FieldShell({
+  ariaHidden,
+  children,
+  className,
+  controlId,
+  info,
+  title,
+  trailing,
+}: FieldShellProps): JSX.Element {
+  const resolvedClassName = className === undefined ? "field-shell" : `field-shell ${className}`;
+
+  return (
+    <div className={resolvedClassName} aria-hidden={ariaHidden}>
+      <LabelWithInfo
+        controlId={controlId}
+        title={title}
+        info={info}
+        trailing={trailing}
+      />
+      {children}
+    </div>
   );
 }
 
@@ -486,12 +623,14 @@ function App(): JSX.Element {
 
       <section className="panel">
         <div className="plan-toolbar">
-          <label className="plan-count-field">
-            <LabelWithInfo
-              title="模板执行次数"
-              info="对整套攻击编排重复执行的次数。总期望伤害 = 每轮模板期望伤害 × 模板执行次数。"
-            />
+          <FieldShell
+            className="plan-count-field"
+            controlId="plan-count"
+            title="模板执行次数"
+            info="对整套攻击编排重复执行的次数。总期望伤害 = 每轮模板期望伤害 × 模板执行次数。"
+          >
             <select
+              id="plan-count"
               value={planCountText}
               onChange={(event) => setPlanCountText(event.currentTarget.value)}
             >
@@ -506,7 +645,7 @@ function App(): JSX.Element {
               <option value="9">9</option>
               <option value="10">10</option>
             </select>
-          </label>
+          </FieldShell>
         </div>
 
         <div className="entry-list">
@@ -514,6 +653,17 @@ function App(): JSX.Element {
             const entryResult = findEntryResult(result.entries, entry.id);
             const isNormalDamageMode = entry.damageDiceMode === "normal";
             const hasResolvedOffHand = entryResult?.hasOffHandStep === true;
+            const mainHandDamageId = `${entry.id}-main-hand-damage`;
+            const mainHandAttackBonusId = `${entry.id}-main-hand-attack-bonus`;
+            const offHandDamageId = `${entry.id}-off-hand-damage`;
+            const offHandAttackBonusId = `${entry.id}-off-hand-attack-bonus`;
+            const armorClassId = `${entry.id}-armor-class`;
+            const advantageStateId = `${entry.id}-advantage-state`;
+            const modifierId = `${entry.id}-modifier`;
+            const damageDiceModeId = `${entry.id}-damage-dice-mode`;
+            const damageRollCountId = `${entry.id}-damage-roll-count`;
+            const criticalThresholdId = `${entry.id}-critical-threshold`;
+            const halflingLuckyId = `${entry.id}-halfling-lucky`;
 
             return (
               <article key={entry.id} className="entry-card">
@@ -533,24 +683,25 @@ function App(): JSX.Element {
 
                 <div className="grid three">
                   <div className="span-3 hand-row">
-                    <label>
-                      <LabelWithInfo
-                        title="主手伤害骰表达式"
-                        info="例如 1d8+3、2d6+1。重击时只翻倍骰子部分，不翻倍常数。"
-                        trailing={
-                          <InlineRepeatSelect
-                            ariaLabel={`攻击项 ${index + 1} 主手执行次数`}
-                            label="主手执行"
-                            value={entry.mainHandRepeatText}
-                            onChange={(value) =>
-                              updateEntry(entry.id, {
-                                mainHandRepeatText: value,
-                              })
-                            }
-                          />
-                        }
-                      />
+                    <FieldShell
+                      controlId={mainHandDamageId}
+                      title="主手伤害骰表达式"
+                      info="例如 1d8+3、2d6+1。重击时只翻倍骰子部分，不翻倍常数。"
+                      trailing={
+                        <InlineRepeatControl
+                          ariaLabel={`攻击项 ${index + 1} 主手执行次数`}
+                          label="主手执行"
+                          value={entry.mainHandRepeatText}
+                          onChange={(value) =>
+                            updateEntry(entry.id, {
+                              mainHandRepeatText: value,
+                            })
+                          }
+                        />
+                      }
+                    >
                       <HistoryTextInput
+                        id={mainHandDamageId}
                         ariaLabel={`攻击项 ${index + 1} 主手伤害骰表达式`}
                         value={entry.mainHandDamageExprText}
                         history={historyState.mainHandDamageExprText}
@@ -563,14 +714,15 @@ function App(): JSX.Element {
                           commitHistory("mainHandDamageExprText", value)
                         }
                       />
-                    </label>
+                    </FieldShell>
 
-                    <label>
-                      <LabelWithInfo
-                        title="主手攻击加值"
-                        info="支持完整表达式，如 5、1d4+5、2+1d6。主手命中判定使用 d20 + 主手攻击加值表达式。"
-                      />
+                    <FieldShell
+                      controlId={mainHandAttackBonusId}
+                      title="主手攻击加值"
+                      info="支持完整表达式，如 5、1d4+5、2+1d6。主手命中判定使用 d20 + 主手攻击加值表达式。"
+                    >
                       <HistoryTextInput
+                        id={mainHandAttackBonusId}
                         ariaLabel={`攻击项 ${index + 1} 主手攻击加值表达式`}
                         value={entry.mainHandAttackBonusExprText}
                         history={historyState.mainHandAttackBonusExprText}
@@ -583,28 +735,29 @@ function App(): JSX.Element {
                           commitHistory("mainHandAttackBonusExprText", value)
                         }
                       />
-                    </label>
+                    </FieldShell>
                   </div>
 
                   <div className="span-3 hand-row">
-                    <label>
-                      <LabelWithInfo
-                        title="副手伤害骰表达式"
-                        info="留空表示该攻击项不计算副手段；此时副手执行次数与副手攻击加值会被忽略。填写后自动按主手+副手双段聚合。"
-                        trailing={
-                          <InlineRepeatSelect
-                            ariaLabel={`攻击项 ${index + 1} 副手执行次数`}
-                            label="副手执行"
-                            value={entry.offHandRepeatText}
-                            onChange={(value) =>
-                              updateEntry(entry.id, {
-                                offHandRepeatText: value,
-                              })
-                            }
-                          />
-                        }
-                      />
+                    <FieldShell
+                      controlId={offHandDamageId}
+                      title="副手伤害骰表达式"
+                      info="留空表示该攻击项不计算副手段；此时副手执行次数与副手攻击加值会被忽略。填写后自动按主手+副手双段聚合。"
+                      trailing={
+                        <InlineRepeatControl
+                          ariaLabel={`攻击项 ${index + 1} 副手执行次数`}
+                          label="副手执行"
+                          value={entry.offHandRepeatText}
+                          onChange={(value) =>
+                            updateEntry(entry.id, {
+                              offHandRepeatText: value,
+                            })
+                          }
+                        />
+                      }
+                    >
                       <HistoryTextInput
+                        id={offHandDamageId}
                         ariaLabel={`攻击项 ${index + 1} 副手伤害骰表达式`}
                         value={entry.offHandDamageExprText}
                         placeholder="例如 1d6+2（留空表示不使用副手）"
@@ -618,14 +771,15 @@ function App(): JSX.Element {
                           commitHistory("offHandDamageExprText", value)
                         }
                       />
-                    </label>
+                    </FieldShell>
 
-                    <label>
-                      <LabelWithInfo
-                        title="副手攻击加值"
-                        info="支持完整表达式，如 5、1d4+5、2+1d6。仅在副手伤害表达式非空时参与计算。"
-                      />
+                    <FieldShell
+                      controlId={offHandAttackBonusId}
+                      title="副手攻击加值"
+                      info="支持完整表达式，如 5、1d4+5、2+1d6。仅在副手伤害表达式非空时参与计算。"
+                    >
                       <HistoryTextInput
+                        id={offHandAttackBonusId}
                         ariaLabel={`攻击项 ${index + 1} 副手攻击加值表达式`}
                         value={entry.offHandAttackBonusExprText}
                         history={historyState.offHandAttackBonusExprText}
@@ -638,15 +792,16 @@ function App(): JSX.Element {
                           commitHistory("offHandAttackBonusExprText", value)
                         }
                       />
-                    </label>
+                    </FieldShell>
                   </div>
 
-                  <label>
-                    <LabelWithInfo
-                      title="目标护甲等级（AC）"
-                      info="命中门槛。除自动命中/重击规则外，d20 + 攻击加值 >= AC 视为命中。"
-                    />
+                  <FieldShell
+                    controlId={armorClassId}
+                    title="目标护甲等级（AC）"
+                    info="命中门槛。除自动命中/重击规则外，d20 + 攻击加值 >= AC 视为命中。"
+                  >
                     <input
+                      id={armorClassId}
                       value={entry.armorClassText}
                       onChange={(event) =>
                         updateEntry(entry.id, {
@@ -654,14 +809,15 @@ function App(): JSX.Element {
                         })
                       }
                     />
-                  </label>
+                  </FieldShell>
 
-                  <label>
-                    <LabelWithInfo
-                      title="攻击掷骰状态"
-                      info="普通/优势/劣势。优势取两次 d20 高值，劣势取低值。"
-                    />
+                  <FieldShell
+                    controlId={advantageStateId}
+                    title="攻击掷骰状态"
+                    info="普通/优势/劣势。优势取两次 d20 高值，劣势取低值。"
+                  >
                     <select
+                      id={advantageStateId}
                       value={entry.advantageState}
                       onChange={(event) =>
                         updateEntry(entry.id, {
@@ -676,14 +832,15 @@ function App(): JSX.Element {
                       <option value="advantage">优势</option>
                       <option value="disadvantage">劣势</option>
                     </select>
-                  </label>
+                  </FieldShell>
 
-                  <label>
-                    <LabelWithInfo
-                      title="目标伤害修正"
-                      info="普通/抗性/易伤/免疫。抗性减半向下取整，易伤翻倍，免疫为 0。"
-                    />
+                  <FieldShell
+                    controlId={modifierId}
+                    title="目标伤害修正"
+                    info="普通/抗性/易伤/免疫。抗性减半向下取整，易伤翻倍，免疫为 0。"
+                  >
                     <select
+                      id={modifierId}
                       value={entry.modifier}
                       onChange={(event) =>
                         updateEntry(entry.id, {
@@ -700,14 +857,15 @@ function App(): JSX.Element {
                       <option value="vulnerable">易伤</option>
                       <option value="immune">免疫</option>
                     </select>
-                  </label>
+                  </FieldShell>
 
-                  <label>
-                    <LabelWithInfo
-                      title="伤害骰模式"
-                      info="普通/多掷取高/多掷取低。仅影响伤害骰结果，不影响攻击检定。"
-                    />
+                  <FieldShell
+                    controlId={damageDiceModeId}
+                    title="伤害骰模式"
+                    info="普通/多掷取高/多掷取低。仅影响伤害骰结果，不影响攻击检定。"
+                  >
                     <select
+                      id={damageDiceModeId}
                       value={entry.damageDiceMode}
                       onChange={(event) =>
                         updateEntry(entry.id, {
@@ -722,22 +880,28 @@ function App(): JSX.Element {
                       <option value="advantage">多掷取高</option>
                       <option value="disadvantage">多掷取低</option>
                     </select>
-                  </label>
+                  </FieldShell>
 
                   {isNormalDamageMode ? (
-                    <label className="ghost-field" aria-hidden="true">
-                      <span>多掷取高/低次数</span>
-                      <select disabled>
+                    <FieldShell
+                      className="ghost-field"
+                      ariaHidden
+                      controlId={damageRollCountId}
+                      title="多掷取高/低次数"
+                      info="伤害骰模式为多掷取高/低时生效，取值范围 2 到 5。"
+                    >
+                      <select id={damageRollCountId} disabled>
                         <option value="2">2</option>
                       </select>
-                    </label>
+                    </FieldShell>
                   ) : (
-                    <label>
-                      <LabelWithInfo
-                        title="多掷取高/低次数"
-                        info="伤害骰模式为多掷取高/低时生效，取值范围 2 到 5。"
-                      />
+                    <FieldShell
+                      controlId={damageRollCountId}
+                      title="多掷取高/低次数"
+                      info="伤害骰模式为多掷取高/低时生效，取值范围 2 到 5。"
+                    >
                       <select
+                        id={damageRollCountId}
                         value={entry.damageRollCountText}
                         onChange={(event) =>
                           updateEntry(entry.id, {
@@ -750,15 +914,16 @@ function App(): JSX.Element {
                         <option value="4">4</option>
                         <option value="5">5</option>
                       </select>
-                    </label>
+                    </FieldShell>
                   )}
 
-                  <label>
-                    <LabelWithInfo
-                      title="重击阈值"
-                      info="范围 10+ 到 20+。重击时伤害骰子X2。"
-                    />
+                  <FieldShell
+                    controlId={criticalThresholdId}
+                    title="重击阈值"
+                    info="范围 10+ 到 20+。重击时伤害骰子X2。"
+                  >
                     <select
+                      id={criticalThresholdId}
                       value={entry.criticalThresholdText}
                       onChange={(event) =>
                         updateEntry(entry.id, {
@@ -778,15 +943,16 @@ function App(): JSX.Element {
                       <option value="11">11+</option>
                       <option value="10">10+</option>
                     </select>
-                  </label>
+                  </FieldShell>
 
-                  <label>
-                    <LabelWithInfo
-                      title="半身人幸运"
-                      info="开启后，攻击检定掷到 1 时重掷一次。"
-                    />
-                    <span className="checkbox-row">
+                  <FieldShell
+                    controlId={halflingLuckyId}
+                    title="半身人幸运"
+                    info="开启后，攻击检定掷到 1 时重掷一次。"
+                  >
+                    <label className="checkbox-row" htmlFor={halflingLuckyId}>
                       <input
+                        id={halflingLuckyId}
                         type="checkbox"
                         checked={entry.halflingLucky}
                         onChange={(event) =>
@@ -796,8 +962,8 @@ function App(): JSX.Element {
                         }
                       />
                       <span>{entry.halflingLucky ? "已开启" : "未开启"}</span>
-                    </span>
-                  </label>
+                    </label>
+                  </FieldShell>
                 </div>
 
                 <div className="entry-result">
