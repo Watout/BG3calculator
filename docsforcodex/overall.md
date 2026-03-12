@@ -62,7 +62,6 @@ pnpm tauri:build:macos:universal
 
 GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm tauri:build:macos:remote` 默认只请求并下载：
 
-- `bg3calculator-windows-x64`
 - `bg3calculator-macos-universal`
 
 如果后续需要 macOS 签名/公证，再额外补 Apple 证书与 notarization secrets 即可；当前流程先输出未签名安装包，便于开发测试与内部分发，workflow 输入和文档结构也已经为后续接入签名链路预留了位置。
