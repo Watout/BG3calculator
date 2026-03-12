@@ -96,6 +96,12 @@ pwsh.exe -NoProfile -Command "$env:GH_TOKEN = '<github-token>'; pnpm tauri:build
 - `apps/desktop-tauri/src-tauri/tauri.conf.json`
 - `apps/desktop-tauri/src-tauri/Cargo.toml`
 
+推荐直接用脚本同步版本：
+
+```powershell
+pwsh.exe -NoProfile -Command "pnpm release:sync-version -- --tag 0.1.2"
+```
+
 然后再做本地预检：
 
 ```powershell
@@ -103,6 +109,8 @@ pwsh.exe -NoProfile -Command "pnpm release:preflight -- --tag 0.1.2"
 ```
 
 如果这里报版本不一致，`release-desktop` 会在 `verify-workspace` 阶段直接失败，Windows / macOS 构建和 Release 资产上传都不会开始。
+
+这件事已经在仓库里真实发生过一次：远端 `0.1.2` tag 确实触发了 `release-desktop`，但因为四个版本文件当时仍然是 `0.1.0`，workflow 在 preflight 被拦下，所以 GitHub Release 里看不到对应的 Windows / macOS 包。
 
 发布示例：
 

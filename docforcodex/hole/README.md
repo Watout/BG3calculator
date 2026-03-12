@@ -19,3 +19,5 @@
 
 - `release-cicd/`
   - 记录桌面端 release workflow、参数解析、资产收集等坑点
+- `tooling-environment/`
+  - 记录本地工具链缺失、命令入口不一致、环境约束相关问题

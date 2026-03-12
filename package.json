@@ -18,6 +18,7 @@
     "lint": "pnpm exec -- eslint apps packages --max-warnings 0",
     "typecheck": "pnpm exec tsc -b",
     "test": "pnpm exec -- vitest run --config vitest.config.ts",
+    "release:sync-version": "node scripts/release-sync-version.mjs",
     "release:preflight": "node scripts/release-preflight.mjs",
     "release:collect-assets": "node scripts/release-collect-assets.mjs",
     "tauri:dev": "pnpm --filter @bg3dc/desktop-tauri tauri dev",

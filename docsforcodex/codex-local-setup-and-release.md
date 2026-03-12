@@ -126,6 +126,12 @@ pwsh.exe -NoProfile -Command "pnpm test"
 - `apps/desktop-tauri/src-tauri/tauri.conf.json`
 - `apps/desktop-tauri/src-tauri/Cargo.toml`
 
+推荐直接执行版本同步脚本：
+
+```powershell
+pwsh.exe -NoProfile -Command "pnpm release:sync-version -- --tag 0.1.2"
+```
+
 然后执行：
 
 ```powershell
@@ -135,6 +141,12 @@ pwsh.exe -NoProfile -Command "git push origin 0.1.2"
 ```
 
 如果 preflight 因版本不一致而失败，`release-desktop` 会停在 `verify-workspace`，不会继续构建 Windows / macOS 包，也不会更新 GitHub Release 资产。
+
+已确认的真实案例：
+
+- 远端 `0.1.2` tag 的确触发过 `release-desktop`
+- 但 tag 对应提交里的四个版本文件仍然是 `0.1.0`
+- 因此 workflow 在 preflight 直接失败，GitHub Release 中没有出现 `0.1.2` 的 Windows / macOS 资产
 
 随后 GitHub Actions 会自动：
 

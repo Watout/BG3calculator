@@ -177,6 +177,7 @@ Release version mismatch detected for tag 0.1.2:
 解决路径：
 
 - 不要只打 tag；先把四个版本文件同步到目标版本
+- 优先运行 `pnpm release:sync-version -- --tag <tag>` 做四处版本同步
 - 重新运行 `pnpm release:preflight -- --tag <tag>`
 - 然后再推送新的合法 tag
 
@@ -190,6 +191,7 @@ Release version mismatch detected for tag 0.1.2:
 
 - `/.github/workflows/release-desktop.yml`
 - `/scripts/release-preflight.mjs`
+- `/scripts/release-sync-version.mjs`
 - `/package.json`
 - `/apps/desktop-tauri/package.json`
 - `/apps/desktop-tauri/src-tauri/tauri.conf.json`
@@ -319,6 +321,7 @@ on:
 - `release-preflight` 对无 `v` tag 的合法性校验
 - `release-preflight` 对裸 `--` 的兼容测试
 - `release-preflight` 对版本漂移的失败测试
+- `release-sync-version` 对四个版本文件同步更新的测试
 - `release-collect-assets` 对裸 `--` 的兼容测试
 - `release-collect-assets` 对缺失关键资产组的失败测试
 - `release-collect-assets` 对 GitHub output 格式的测试
@@ -344,9 +347,10 @@ on:
 
 ## 当前结论
 
-这次已确认并修复的真实坑点有两个：
+这次已确认并修复或加固的真实坑点有三个：
 
 1. GitHub Actions job 级 `if` 不能直接引用 `matrix.*`
 2. 通过 `pnpm ... -- ...` 调脚本时，CLI 解析必须显式忽略裸 `--`
+3. tag 已推送不代表 release 一定会生成；四个版本文件若未先同步到目标 tag，workflow 会在 preflight 提前失败
 
-这两个问题都已经在代码和测试中补了护栏，后续如果再次出现同类问题，优先先看本文件。
+这几个问题都已经在代码、脚本和测试中补了护栏，后续如果再次出现同类问题，优先先看本文件。

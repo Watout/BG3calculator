@@ -24,6 +24,7 @@ pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 install"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 lint"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 typecheck"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 test"
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:sync-version -- --tag 0.1.2"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 tauri:dev"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:preflight -- --tag 0.1.2"
 ```
@@ -48,6 +49,7 @@ pwsh.exe -NoProfile -Command "$env:GH_TOKEN = '<github-token>'; & corepack.cmd p
 - 远程 macOS 打包要求当前分支工作树干净，且 `origin/<branch>` 与本地 `HEAD` 一致；脚本会在 dispatch 前主动校验。
 - 默认下载目录：`.artifacts/macos-universal/<request_id>/`
 - 远程打包只跑 `macos-universal`，不会顺带重跑 Windows bundle。
+- 仓库内虽包含 `openspec/` 目录，但当前本地 Windows 环境不保证自带 `openspec` CLI；若命令不存在，先直接阅读 `openspec/` 文档或补装 CLI。
 
 macOS 安装包仍然不能在当前 Windows 主机直接本地产出；仓库现在补齐的是“Windows 本机触发 GitHub Actions 的 macOS runner 并回收产物”的链路。若你在一台真实 macOS 机器上本地构建，也可以执行：
 
@@ -68,8 +70,15 @@ GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm 
 正式发布约定：
 
 - Release tag 使用无 `v` 前缀的语义化版本，例如 `0.1.2` 或 `0.1.2-beta.1`
+- 推 tag 前先运行 `pnpm release:sync-version -- --tag <tag>`，统一根工作区、桌面前端、Tauri 配置与 Cargo 版本
 - 正式推 tag 前先运行 `pnpm release:preflight -- --tag <tag>`，确保根工作区、桌面前端、Tauri 配置与 Cargo 版本一致
 - 推送 tag 后，`release-desktop` workflow 会先执行 preflight；只有版本一致时才会继续构建 Windows/macOS 桌面包，并更新同名 GitHub Release 资产
+
+2026-03-13 已确认过一次真实失败样例：
+
+- 远端 `0.1.2` tag 已经触发 `release-desktop`
+- 但四个版本文件仍然停在 `0.1.0`
+- 所以 workflow 在 `verify-workspace` 的 preflight 阶段失败，release 页面没有出现对应桌面包
 
 如果后续需要 macOS 签名/公证，再额外补 Apple 证书与 notarization secrets 即可；当前流程先输出未签名安装包，便于开发测试与内部分发，workflow 输入和文档结构也已经为后续接入签名链路预留了位置。
 
