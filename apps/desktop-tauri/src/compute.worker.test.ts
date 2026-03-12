@@ -189,7 +189,7 @@ describe("compute worker attack plan", (): void => {
     expect(Number(output.expectedPerPlan)).toBeCloseTo(sum, 4);
   });
 
-  it("scales total by plan count and exposes full crit totals", (): void => {
+  it("scales total by plan count and exposes guaranteed critical totals", (): void => {
     const once = computeAttackPlan(
       makeInput({
         entries: [
@@ -221,12 +221,20 @@ describe("compute worker attack plan", (): void => {
       return;
     }
 
+    const onceEntry = once.entries[0];
+    const expectedGuaranteedCrit =
+      Number(onceEntry?.expectedOnCritMainHand ?? "0") * Number(onceEntry?.mainHandRepeat ?? 0) +
+      Number(onceEntry?.expectedOnCritOffHand ?? "0") * Number(onceEntry?.offHandRepeat ?? 0);
+
     expect(Number(thrice.expectedTotal)).toBeCloseTo(Number(once.expectedPerPlan) * 3, 4);
+    expect(Number(once.fullCritExpectedPerPlan)).toBeCloseTo(expectedGuaranteedCrit, 4);
     expect(Number(thrice.fullCritExpectedTotal)).toBeCloseTo(
       Number(once.fullCritExpectedPerPlan) * 3,
       4
     );
-    expect(Number(once.fullCritExpectedPerPlan)).toBeGreaterThan(Number(once.expectedPerPlan));
+    expect(Number(once.fullCritExpectedPerPlan)).toBeGreaterThan(
+      Number(onceEntry?.expectedPerEntry ?? "0")
+    );
   });
 
   it("returns repeat-specific validation errors", (): void => {

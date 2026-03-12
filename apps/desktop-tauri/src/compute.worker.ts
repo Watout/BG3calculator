@@ -115,13 +115,11 @@ function validateRepeatText(
   return Math.max(1, Math.min(MAX_REPEAT_COUNT, Math.floor(parsed)));
 }
 
-function calculateFullCritExpected(
+function calculateGuaranteedCriticalExpected(
   expectedOnCritical: number,
-  hitProbability: number,
-  criticalProbability: number,
   repeat: number
 ): number {
-  return (hitProbability + criticalProbability) * expectedOnCritical * repeat;
+  return expectedOnCritical * repeat;
 }
 
 interface ComputedEntryInternal {
@@ -290,18 +288,14 @@ function computeOneEntry(
   const offHandProbabilities = offHandStep?.result.probabilities ?? null;
 
   const fullCritExpectedPerEntryValue =
-    calculateFullCritExpected(
+    calculateGuaranteedCriticalExpected(
       expectedOnCritMainHandValue,
-      mainProbabilities.hit,
-      mainProbabilities.critical,
       resolvedMainHandRepeat
     ) +
     (offHandProbabilities === null
       ? 0
-      : calculateFullCritExpected(
+      : calculateGuaranteedCriticalExpected(
           expectedOnCritOffHandValue,
-          offHandProbabilities.hit,
-          offHandProbabilities.critical,
           resolvedOffHandRepeat
         ));
 
