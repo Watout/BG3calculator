@@ -21,6 +21,7 @@
     "release:sync-version": "node scripts/release-sync-version.mjs",
     "release:preflight": "node scripts/release-preflight.mjs",
     "release:collect-assets": "node scripts/release-collect-assets.mjs",
+    "release:publish": "node scripts/release-publish.mjs",
     "tauri:dev": "pnpm --filter @bg3dc/desktop-tauri tauri dev",
     "tauri:build": "pnpm --filter @bg3dc/desktop-tauri tauri build --ci",
     "tauri:build:windows": "pnpm --filter @bg3dc/desktop-tauri tauri build --ci --target x86_64-pc-windows-msvc",

@@ -84,7 +84,7 @@ export function printHelp() {
     "Usage: pnpm release:collect-assets -- --input <dir> [options]",
     "",
     "Options:",
-    "  --input <dir>              Directory created by actions/download-artifact. Required.",
+    "  --input <dir>              Directory created by the release artifact download step. Required.",
     "  --github-output <path>     Optional GitHub Actions output file. Defaults to GITHUB_OUTPUT.",
     "  --help, -h                 Show this help text."
   ].join("\n");

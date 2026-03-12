@@ -10,6 +10,7 @@
 - `/.github/workflows/release-desktop.yml`
 - `/scripts/release-preflight.mjs`
 - `/scripts/release-collect-assets.mjs`
+- `/scripts/release-publish.mjs`
 
 ---
 
@@ -282,17 +283,77 @@ Error: Process completed with exit code 1.
 - 补 `actions/setup-node@v5`
 - 将资产收集改为直接运行 `node scripts/release-collect-assets.mjs --input release-assets`
 - 由于这个脚本只依赖 Node 内置模块，所以这里不需要额外执行 `pnpm install`
+- 后续在 Node 20 action runtime 下线整改中，`publish-release` 又进一步收敛为 `node scripts/release-publish.mjs --input release-assets ...`
+- 当前 `release-publish.mjs` 会在上传前内部复用 `release-collect-assets.mjs` 的资产契约校验，不再依赖 workflow 里的 `steps.collect.outputs.files`
 
 验证方式：
 
 - `Collect release files` 不再报 `pnpm is not recognized`
-- `steps.collect.outputs.files` 能成功生成多行输出
-- `Publish GitHub release` 能读取到 `files` 并继续上传 release assets
+- `Publish GitHub release` 这一步能直接在当前 job 完成资产校验、Release upsert 与 asset 上传
 
 相关文件：
 
 - `/.github/workflows/release-desktop.yml`
 - `/scripts/release-collect-assets.mjs`
+- `/scripts/release-publish.mjs`
+
+---
+
+### 6. Node.js 20 JavaScript action runtime 弃用告警不能只靠“升个小版本”赌过去
+
+错误现象：
+
+- GitHub Actions 构建完成后出现 deprecation warning：
+
+```text
+Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/download-artifact@v4, softprops/action-gh-release@v2. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026.
+```
+
+根因：
+
+- 这类告警针对的是 JavaScript action metadata 里的 `runs.using` runtime，不是 workflow 自己用 `actions/setup-node` 配的业务 Node 版本
+- 仓库虽然已经把 job 内业务 Node 固定到 `24.14.0`，并设置了 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true`
+- 但 `actions/download-artifact@v4` 与 `softprops/action-gh-release@v2` 仍然属于声明为 Node 20 的 JavaScript action，所以继续被 GitHub 标记为风险点
+- `softprops/action-gh-release` 的 release note 与公开 `action.yml` 一度出现“自称已迁到 Node 24、但 metadata 仍显示 node20”的冲突信息，工程上不能把这种状态当成已经修好
+
+解决路径：
+
+- 将 `actions/upload-artifact` 从 `v4` 升级到 `v6`
+- 将 `publish-release` 里的 `actions/download-artifact@v4` 替换成 `gh run download "${{ github.run_id }}" --dir release-assets`
+- 将 `softprops/action-gh-release@v2` 替换成仓库内 `node scripts/release-publish.mjs --input release-assets ...`
+- `release-publish.mjs` 通过 GitHub REST API：
+  - 按 tag 查询 release
+  - 不存在时创建 release 并生成 notes
+  - 已存在时更新 title / prerelease 状态
+  - 上传前删除同名旧资产，再重新上传，等价于原来的 `overwrite_files: true`
+- 保留 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` 作为过渡期保险，但不再把关键发布链路押在 Node 20 action 上
+
+验证结果：
+
+- `pnpm lint` 通过
+- `pnpm typecheck` 通过
+- `pnpm test` 通过
+- 新增 `release-publish` 单测，覆盖：
+  - 裸 `--` 参数转发
+  - 新建 release
+  - 更新现有 release
+  - 删除同名旧资产再上传
+  - 缺少 token 的失败路径
+
+后续防回归建议：
+
+- 以后看到 GitHub Actions 的 Node runtime 弃用告警，先查 action metadata，不要先入为主地以为 `setup-node` 已经解决问题
+- 优先选官方 action 的 Node 24 版本；如果上游 action 长期停在旧 runtime，优先改为仓库内脚本或 `gh`/REST API，而不是继续赌第三方 action 的 tag 漂移
+- `gh run download` 目前依赖“下载多个 artifact 时会按 artifact 名创建子目录”的行为；如果未来要改成单 artifact 下载或别的下载方式，必须同步检查 `release-collect-assets.mjs` 的目录契约
+- 本地 Windows 开发环境当前不保证自带 `gh`；如果本地要模拟 `publish-release`，先确认 `gh --version`，没有的话先装 GitHub CLI，再复现 `gh run download`
+
+相关文件：
+
+- `/.github/workflows/desktop-build.yml`
+- `/.github/workflows/release-desktop.yml`
+- `/scripts/release-collect-assets.mjs`
+- `/scripts/release-publish.mjs`
+- `/scripts/release-publish.test.ts`
 
 ---
 
@@ -384,6 +445,7 @@ Error: Process completed with exit code 1.
 - `release-collect-assets` 对裸 `--` 的兼容测试
 - `release-collect-assets` 对缺失关键资产组的失败测试
 - `release-collect-assets` 对 GitHub output 格式的测试
+- `release-publish` 对 release upsert、同名 asset 覆盖与 token 缺失的测试
 
 原因：
 
@@ -399,18 +461,20 @@ Error: Process completed with exit code 1.
 1. 先看 workflow 是“解析失败”还是“运行失败”
 2. 如果是解析失败，先查 YAML 表达式、`matrix`、`${{ }}` 上下文
 3. 如果是运行失败，先看 `release-preflight` 是否把 tag 或版本拦下了
-4. 如果 preflight 通过，再看 `release-collect-assets` 是否缺关键产物
-5. 最后再看 Tauri 构建本身是否产出了预期 bundle
+4. 如果 preflight 通过，再看 `release-collect-assets` / `release-publish` 是否缺关键产物或上传失败
+5. 再看是否仍有 Node runtime 弃用告警指向旧版 JavaScript action
+6. 最后再看 Tauri 构建本身是否产出了预期 bundle
 
 ---
 
 ## 当前结论
 
-这次已确认并修复或加固的真实坑点有四个：
+这次已确认并修复或加固的真实坑点有五个：
 
 1. GitHub Actions job 级 `if` 不能直接引用 `matrix.*`
 2. 通过 `pnpm ... -- ...` 调脚本时，CLI 解析必须显式忽略裸 `--`
 3. tag 已推送不代表 release 一定会生成；四个版本文件若未先同步到目标 tag，workflow 会在 preflight 提前失败
 4. `publish-release` 是独立 job，不能直接假设前一个 job 准备好的 `pnpm` / checkout 仍然存在
+5. GitHub Actions 的 Node runtime 弃用告警要看 action metadata；必要时要用仓库内脚本或 CLI/REST API 替换旧 JavaScript action
 
 这几个问题都已经在代码、脚本和测试中补了护栏，后续如果再次出现同类问题，优先先看本文件。
