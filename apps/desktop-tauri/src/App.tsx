@@ -989,12 +989,10 @@ function App(): JSX.Element {
 
       <section className="panel result">
         <h2>总结果</h2>
-        <p>每轮模板期望伤害：{result.expectedPerPlan}</p>
         <p>
           总期望伤害（{Math.max(1, Math.floor(parsedPlanCount || 1))} 轮模板）：
           {result.expectedTotal}
         </p>
-        <p>必中全重击状态下每轮模板期望伤害：{result.fullCritExpectedPerPlan}</p>
         <p>
           必中全重击状态下总期望伤害（{Math.max(1, Math.floor(parsedPlanCount || 1))} 轮模板）：
           {result.fullCritExpectedTotal}

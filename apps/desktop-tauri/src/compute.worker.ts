@@ -122,6 +122,21 @@ function calculateGuaranteedCriticalExpected(
   return expectedOnCritical * repeat;
 }
 
+function calculateGuaranteedCriticalExpectedForSteps(
+  steps: readonly {
+    readonly repeat: number;
+    readonly result: {
+      readonly expectedDamageOnCritical: number;
+    };
+  }[]
+): number {
+  return steps.reduce(
+    (total, step) =>
+      total + calculateGuaranteedCriticalExpected(step.result.expectedDamageOnCritical, step.repeat),
+    0
+  );
+}
+
 interface ComputedEntryInternal {
   readonly entry: ComputeEntrySuccess;
   readonly expectedPerEntryValue: number;
@@ -287,17 +302,9 @@ function computeOneEntry(
   };
   const offHandProbabilities = offHandStep?.result.probabilities ?? null;
 
-  const fullCritExpectedPerEntryValue =
-    calculateGuaranteedCriticalExpected(
-      expectedOnCritMainHandValue,
-      resolvedMainHandRepeat
-    ) +
-    (offHandProbabilities === null
-      ? 0
-      : calculateGuaranteedCriticalExpected(
-          expectedOnCritOffHandValue,
-          resolvedOffHandRepeat
-        ));
+  const fullCritExpectedPerEntryValue = calculateGuaranteedCriticalExpectedForSteps(
+    resolved.steps
+  );
 
   const templateSummary = useOffHand ? "主手 + 副手" : "副手留空，已回退为仅主手";
 

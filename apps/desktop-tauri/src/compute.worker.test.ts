@@ -237,6 +237,32 @@ describe("compute worker attack plan", (): void => {
     );
   });
 
+  it("keeps guaranteed critical totals independent from normal expected totals", (): void => {
+    const output = computeAttackPlan(
+      makeInput({
+        entries: [
+          makeEntry({
+            mainHandAttackBonusFixedText: "7",
+            mainHandDamageExprText: "10d10"
+          })
+        ],
+        planCountText: "1"
+      })
+    );
+
+    expect(output.ok).toBe(true);
+    if (!output.ok) {
+      return;
+    }
+
+    const entry = output.entries[0];
+    expect(entry?.expectedOnCritMainHand).toBe("110.0000");
+    expect(output.expectedPerPlan).toBe("38.5000");
+    expect(output.fullCritExpectedPerPlan).toBe("110.0000");
+    expect(output.expectedTotal).toBe("38.5000");
+    expect(output.fullCritExpectedTotal).toBe("110.0000");
+  });
+
   it("returns repeat-specific validation errors", (): void => {
     const output = computeAttackPlan(
       makeInput({
