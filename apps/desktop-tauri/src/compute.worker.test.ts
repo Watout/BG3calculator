@@ -8,6 +8,8 @@ import {
 function makeEntry(overrides: Partial<AttackPlanEntryInput> = {}): AttackPlanEntryInput {
   return {
     id: "entry-1",
+    mainHandRepeatText: "1",
+    offHandRepeatText: "1",
     mainHandAttackBonusFixedText: "5",
     mainHandAttackBonusDie: "none",
     offHandAttackBonusFixedText: "5",
@@ -53,7 +55,10 @@ describe("compute worker attack plan", (): void => {
 
     expect(output.entries).toHaveLength(1);
     expect(output.entries[0]?.hasOffHandStep).toBe(false);
+    expect(output.entries[0]?.mainHandRepeat).toBe(1);
+    expect(output.entries[0]?.offHandRepeat).toBe(0);
     expect(output.entries[0]?.expectedOffHand).toBe("0.0000");
+    expect(output.entries[0]?.expectedOffHandTotal).toBe("0.0000");
     expect(output.entries[0]?.expectedOnHitOffHand).toBe("0.0000");
     expect(output.entries[0]?.expectedOnCritOffHand).toBe("0.0000");
     expect(output.entries[0]?.offHandProbabilitySummary).toBe("-");
@@ -77,7 +82,10 @@ describe("compute worker attack plan", (): void => {
     }
 
     expect(output.entries[0]?.hasOffHandStep).toBe(true);
+    expect(output.entries[0]?.mainHandRepeat).toBe(1);
+    expect(output.entries[0]?.offHandRepeat).toBe(1);
     expect(Number(output.entries[0]?.expectedOffHand ?? "0")).toBeGreaterThan(0);
+    expect(Number(output.entries[0]?.expectedOffHandTotal ?? "0")).toBeGreaterThan(0);
     expect(Number(output.entries[0]?.expectedOnHitOffHand ?? "0")).toBeGreaterThan(0);
     expect(Number(output.entries[0]?.expectedOnCritOffHand ?? "0")).toBeGreaterThan(0);
     expect(output.entries[0]?.offHandProbabilitySummary.includes("hit")).toBe(true);
@@ -120,12 +128,53 @@ describe("compute worker attack plan", (): void => {
     );
   });
 
+  it("applies independent main-hand and offhand repeat counts", (): void => {
+    const output = computeAttackPlan(
+      makeInput({
+        entries: [
+          makeEntry({
+            mainHandRepeatText: "2",
+            offHandDamageExprText: "1d6+2",
+            offHandRepeatText: "3"
+          })
+        ]
+      })
+    );
+
+    expect(output.ok).toBe(true);
+    if (!output.ok) {
+      return;
+    }
+
+    const entry = output.entries[0];
+    expect(entry?.mainHandRepeat).toBe(2);
+    expect(entry?.offHandRepeat).toBe(3);
+    expect(Number(entry?.expectedMainHandTotal ?? "0")).toBeCloseTo(
+      Number(entry?.expectedMainHand ?? "0") * 2,
+      4
+    );
+    expect(Number(entry?.expectedOffHandTotal ?? "0")).toBeCloseTo(
+      Number(entry?.expectedOffHand ?? "0") * 3,
+      4
+    );
+    expect(Number(entry?.expectedPerEntry ?? "0")).toBeCloseTo(
+      Number(entry?.expectedMainHandTotal ?? "0") + Number(entry?.expectedOffHandTotal ?? "0"),
+      4
+    );
+  });
+
   it("aggregates multiple independent entries", (): void => {
     const output = computeAttackPlan(
       makeInput({
         entries: [
           makeEntry({ id: "main", mainHandDamageExprText: "1d8+3" }),
-          makeEntry({ id: "off", mainHandDamageExprText: "1d6+2", offHandDamageExprText: "1d4+1" })
+          makeEntry({
+            id: "off",
+            mainHandRepeatText: "2",
+            offHandRepeatText: "2",
+            mainHandDamageExprText: "1d6+2",
+            offHandDamageExprText: "1d4+1"
+          })
         ]
       })
     );
@@ -140,9 +189,31 @@ describe("compute worker attack plan", (): void => {
     expect(Number(output.expectedPerPlan)).toBeCloseTo(sum, 4);
   });
 
-  it("scales total by plan count", (): void => {
-    const once = computeAttackPlan(makeInput({ planCountText: "1" }));
-    const thrice = computeAttackPlan(makeInput({ planCountText: "3" }));
+  it("scales total by plan count and exposes full crit totals", (): void => {
+    const once = computeAttackPlan(
+      makeInput({
+        entries: [
+          makeEntry({
+            mainHandRepeatText: "2",
+            offHandDamageExprText: "1d6+2",
+            offHandRepeatText: "2"
+          })
+        ],
+        planCountText: "1"
+      })
+    );
+    const thrice = computeAttackPlan(
+      makeInput({
+        entries: [
+          makeEntry({
+            mainHandRepeatText: "2",
+            offHandDamageExprText: "1d6+2",
+            offHandRepeatText: "2"
+          })
+        ],
+        planCountText: "3"
+      })
+    );
 
     expect(once.ok).toBe(true);
     expect(thrice.ok).toBe(true);
@@ -151,6 +222,30 @@ describe("compute worker attack plan", (): void => {
     }
 
     expect(Number(thrice.expectedTotal)).toBeCloseTo(Number(once.expectedPerPlan) * 3, 4);
+    expect(Number(thrice.fullCritExpectedTotal)).toBeCloseTo(
+      Number(once.fullCritExpectedPerPlan) * 3,
+      4
+    );
+    expect(Number(once.fullCritExpectedPerPlan)).toBeGreaterThan(Number(once.expectedPerPlan));
+  });
+
+  it("returns repeat-specific validation errors", (): void => {
+    const output = computeAttackPlan(
+      makeInput({
+        entries: [
+          makeEntry({
+            mainHandRepeatText: "21"
+          })
+        ]
+      })
+    );
+
+    expect(output.ok).toBe(false);
+    if (output.ok) {
+      return;
+    }
+
+    expect(output.errorMessage).toContain("主手执行次数必须在 1 到 20 之间");
   });
 
   it("returns field-scoped error with entry index", (): void => {

@@ -10,6 +10,7 @@ import {
   resolveBg3AttackTemplate,
   summarizeProbabilities
 } from "@bg3dc/rulesets";
+import { MAX_REPEAT_COUNT } from "./inputHistory";
 
 export type AttackBonusDie = "none" | "1d4" | "1d6" | "1d8" | "1d10" | "1d12";
 export type AdvantageState = "normal" | "advantage" | "disadvantage";
@@ -18,6 +19,8 @@ export type DamageModifier = "normal" | "resistant" | "vulnerable" | "immune";
 
 export interface AttackPlanEntryInput {
   readonly id: string;
+  readonly mainHandRepeatText: string;
+  readonly offHandRepeatText: string;
   readonly mainHandAttackBonusFixedText: string;
   readonly mainHandAttackBonusDie: AttackBonusDie;
   readonly offHandAttackBonusFixedText: string;
@@ -42,8 +45,12 @@ export interface ComputeInput {
 export interface ComputeEntrySuccess {
   readonly id: string;
   readonly hasOffHandStep: boolean;
+  readonly mainHandRepeat: number;
+  readonly offHandRepeat: number;
   readonly expectedMainHand: string;
+  readonly expectedMainHandTotal: string;
   readonly expectedOffHand: string;
+  readonly expectedOffHandTotal: string;
   readonly expectedPerEntry: string;
   readonly expectedOnHitMainHand: string;
   readonly expectedOnCritMainHand: string;
@@ -59,6 +66,8 @@ export interface ComputeSuccess {
   readonly requestId: number;
   readonly expectedPerPlan: string;
   readonly expectedTotal: string;
+  readonly fullCritExpectedPerPlan: string;
+  readonly fullCritExpectedTotal: string;
   readonly entries: readonly ComputeEntrySuccess[];
 }
 
@@ -93,9 +102,32 @@ function buildAttackBonusExpressionText(
   return `${fixedText}+${die}`;
 }
 
+function validateRepeatText(
+  value: string,
+  requestId: number,
+  label: string
+): number | ComputeFailure {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > MAX_REPEAT_COUNT) {
+    return asFailure(requestId, `${label}执行次数必须在 1 到 ${MAX_REPEAT_COUNT} 之间`);
+  }
+
+  return Math.max(1, Math.min(MAX_REPEAT_COUNT, Math.floor(parsed)));
+}
+
+function calculateFullCritExpected(
+  expectedOnCritical: number,
+  hitProbability: number,
+  criticalProbability: number,
+  repeat: number
+): number {
+  return (hitProbability + criticalProbability) * expectedOnCritical * repeat;
+}
+
 interface ComputedEntryInternal {
   readonly entry: ComputeEntrySuccess;
   readonly expectedPerEntryValue: number;
+  readonly fullCritExpectedPerEntryValue: number;
 }
 
 function computeOneEntry(
@@ -104,6 +136,10 @@ function computeOneEntry(
   index: number
 ): ComputedEntryInternal | ComputeFailure {
   const label = `第 ${index + 1} 项`;
+  const mainHandRepeat = validateRepeatText(entry.mainHandRepeatText, requestId, `${label}主手`);
+  if (typeof mainHandRepeat !== "number") {
+    return mainHandRepeat;
+  }
 
   const parsedMainHandDamage = tryParseDiceExpression(entry.mainHandDamageExprText);
   if (!parsedMainHandDamage.ok) {
@@ -154,7 +190,13 @@ function computeOneEntry(
   const offHandText = entry.offHandDamageExprText.trim();
   let parsedOffHandDamageValue: ParsedDiceExpression | null = null;
   let parsedOffHandAttackBonusExpressionValue: ParsedDiceExpression | null = null;
+  let offHandRepeat = 0;
   if (offHandText.length > 0) {
+    const parsedOffHandRepeat = validateRepeatText(entry.offHandRepeatText, requestId, `${label}副手`);
+    if (typeof parsedOffHandRepeat !== "number") {
+      return parsedOffHandRepeat;
+    }
+
     const parsedOffHandDamage = tryParseDiceExpression(offHandText);
     if (!parsedOffHandDamage.ok) {
       return asFailure(requestId, `${label}副手伤害表达式错误：${parsedOffHandDamage.error.message}`);
@@ -172,6 +214,7 @@ function computeOneEntry(
       );
     }
 
+    offHandRepeat = parsedOffHandRepeat;
     parsedOffHandDamageValue = parsedOffHandDamage.value;
     parsedOffHandAttackBonusExpressionValue = parsedOffHandAttackBonusExpression.value;
   }
@@ -202,7 +245,8 @@ function computeOneEntry(
   };
 
   let template = makeDualWieldTemplate({
-    mainHandEffects: sharedEffects
+    mainHandEffects: sharedEffects,
+    mainHandRepeat
   });
   let useOffHand = false;
 
@@ -216,7 +260,9 @@ function computeOneEntry(
       },
       offHandDamagePatch: {
         expression: parsedOffHandDamageValue
-      }
+      },
+      mainHandRepeat,
+      offHandRepeat
     });
   }
 
@@ -224,8 +270,13 @@ function computeOneEntry(
   const mainHandStep = resolved.steps.find((step) => step.step.id === "main-hand");
   const offHandStep = resolved.steps.find((step) => step.step.id === "off-hand");
 
+  const resolvedMainHandRepeat = mainHandStep?.repeat ?? mainHandRepeat;
+  const resolvedOffHandRepeat = offHandStep?.repeat ?? 0;
+
   const expectedMainHandValue = mainHandStep?.result.expectedDamagePerAttack ?? 0;
   const expectedOffHandValue = offHandStep?.result.expectedDamagePerAttack ?? 0;
+  const expectedMainHandTotalValue = expectedMainHandValue * resolvedMainHandRepeat;
+  const expectedOffHandTotalValue = expectedOffHandValue * resolvedOffHandRepeat;
   const expectedPerEntryValue = resolved.totalResult.expectedDamagePerPlan;
   const expectedOnHitMainHandValue = mainHandStep?.result.expectedDamageOnHit ?? 0;
   const expectedOnCritMainHandValue = mainHandStep?.result.expectedDamageOnCritical ?? 0;
@@ -238,15 +289,36 @@ function computeOneEntry(
   };
   const offHandProbabilities = offHandStep?.result.probabilities ?? null;
 
+  const fullCritExpectedPerEntryValue =
+    calculateFullCritExpected(
+      expectedOnCritMainHandValue,
+      mainProbabilities.hit,
+      mainProbabilities.critical,
+      resolvedMainHandRepeat
+    ) +
+    (offHandProbabilities === null
+      ? 0
+      : calculateFullCritExpected(
+          expectedOnCritOffHandValue,
+          offHandProbabilities.hit,
+          offHandProbabilities.critical,
+          resolvedOffHandRepeat
+        ));
+
   const templateSummary = useOffHand ? "主手 + 副手" : "副手留空，已回退为仅主手";
 
   return {
     expectedPerEntryValue,
+    fullCritExpectedPerEntryValue,
     entry: {
       id: entry.id,
       hasOffHandStep: useOffHand,
+      mainHandRepeat: resolvedMainHandRepeat,
+      offHandRepeat: resolvedOffHandRepeat,
       expectedMainHand: expectedMainHandValue.toFixed(4),
+      expectedMainHandTotal: expectedMainHandTotalValue.toFixed(4),
       expectedOffHand: expectedOffHandValue.toFixed(4),
+      expectedOffHandTotal: expectedOffHandTotalValue.toFixed(4),
       expectedPerEntry: expectedPerEntryValue.toFixed(4),
       expectedOnHitMainHand: expectedOnHitMainHandValue.toFixed(4),
       expectedOnCritMainHand: expectedOnCritMainHandValue.toFixed(4),
@@ -273,6 +345,7 @@ export function computeAttackPlan(input: ComputeInput): ComputeOutput {
   const safePlanCount = Math.max(1, parseIntegerText(input.planCountText));
   const computedEntries: ComputeEntrySuccess[] = [];
   let expectedPerPlanValue = 0;
+  let fullCritExpectedPerPlanValue = 0;
 
   for (let index = 0; index < input.entries.length; index += 1) {
     const entry = input.entries[index];
@@ -287,15 +360,19 @@ export function computeAttackPlan(input: ComputeInput): ComputeOutput {
 
     computedEntries.push(result.entry);
     expectedPerPlanValue += result.expectedPerEntryValue;
+    fullCritExpectedPerPlanValue += result.fullCritExpectedPerEntryValue;
   }
 
   const expectedTotalValue = expectedPerPlanValue * safePlanCount;
+  const fullCritExpectedTotalValue = fullCritExpectedPerPlanValue * safePlanCount;
 
   return {
     ok: true,
     requestId: input.requestId,
     expectedPerPlan: expectedPerPlanValue.toFixed(4),
     expectedTotal: expectedTotalValue.toFixed(4),
+    fullCritExpectedPerPlan: fullCritExpectedPerPlanValue.toFixed(4),
+    fullCritExpectedTotal: fullCritExpectedTotalValue.toFixed(4),
     entries: computedEntries
   };
 }
