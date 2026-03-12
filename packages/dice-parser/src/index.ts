@@ -184,7 +184,6 @@ export function parseDiceExpression(input: string): ParsedDiceExpression {
       throw new DiceParseError(makeIssue("期望骰子项或数字", index));
     }
 
-    pendingSign = 1;
     isFirstTerm = false;
     index = skipWhitespace(source, index);
 

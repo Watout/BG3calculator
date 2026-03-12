@@ -7,7 +7,7 @@
 - Windows 10/11
 - PowerShell 7（`pwsh.exe`）
 - Node.js `24.14.0`
-- `pnpm@8.15.9`
+- `pnpm@10.32.1`
 - Rust stable（含 `cargo` / `rustup`）
 - WebView2 Runtime
 - Visual Studio C++ / MSVC 工具链（Tauri Windows 桌面端需要）
@@ -15,16 +15,16 @@
 推荐先确保 `corepack` 可用，再按下面命令安装依赖：
 
 ```powershell
-pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@8.15.9 install --frozen-lockfile"
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 install"
 ```
 
 常用开发与校验命令：
 
 ```powershell
-pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@8.15.9 lint"
-pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@8.15.9 typecheck"
-pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@8.15.9 test"
-pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@8.15.9 tauri:dev"
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 lint"
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 typecheck"
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 test"
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 tauri:dev"
 ```
 
 VS Code 建议安装：
