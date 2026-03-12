@@ -1,5 +1,37 @@
 # BG3DC 代码边界与接口暴露文档
 
+## 0. 开发环境
+
+当前仓库已验证可在以下环境中完成安装与校验：
+
+- Windows 10/11
+- PowerShell 7（`pwsh.exe`）
+- Node.js `24.14.0`
+- `pnpm@8.15.9`
+- Rust stable（含 `cargo` / `rustup`）
+- WebView2 Runtime
+- Visual Studio C++ / MSVC 工具链（Tauri Windows 桌面端需要）
+
+推荐先确保 `corepack` 可用，再按下面命令安装依赖：
+
+```powershell
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@8.15.9 install --frozen-lockfile"
+```
+
+常用开发与校验命令：
+
+```powershell
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@8.15.9 lint"
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@8.15.9 typecheck"
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@8.15.9 test"
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@8.15.9 tauri:dev"
+```
+
+VS Code 建议安装：
+
+- `tauri-apps.tauri-vscode`
+- `rust-lang.rust-analyzer`
+
 ## 1. 目的
 
 本文档用于定义本仓库的代码边界、各模块接口职责、以及对外暴露面，确保：
