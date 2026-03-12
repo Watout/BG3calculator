@@ -200,6 +200,31 @@ Release version mismatch detected for tag 0.1.2:
 
 这是必须保留的防漂移约束，不能删。
 
+2026-03-13 又复现了一次同类问题：
+
+- 在 GitHub Actions / Linux runner 里执行 `pnpm release:preflight -- --tag 0.1.5`
+- 四个版本文件已经推进到 `0.1.4`
+- 但目标 tag 是 `0.1.5`
+- 因此再次得到标准版本漂移报错，而不是脚本异常：
+
+```text
+Release version mismatch detected for tag 0.1.5:
+- package.json: found 0.1.4, expected 0.1.5
+- apps/desktop-tauri/package.json: found 0.1.4, expected 0.1.5
+- apps/desktop-tauri/src-tauri/tauri.conf.json: found 0.1.4, expected 0.1.5
+- apps/desktop-tauri/src-tauri/Cargo.toml: found 0.1.4, expected 0.1.5
+```
+
+这次的直接修复方式：
+
+- 在仓库根目录执行 `pnpm release:sync-version -- --tag 0.1.5`
+- 再执行 `pnpm release:preflight -- --tag 0.1.5`
+
+验证结果：
+
+- 四个版本文件全部同步到 `0.1.5`
+- `release:preflight` 可以继续往后通过，不再停在版本一致性校验
+
 ---
 
 ### 3. `release-desktop.yml` 的宽匹配依赖 preflight 兜底
