@@ -253,6 +253,49 @@ on:
 
 ---
 
+### 5. `publish-release` 不能假设前一个 job 的 `pnpm` / checkout 仍然存在
+
+报错原文：
+
+```text
+Run pnpm release:collect-assets -- --input release-assets
+pnpm: /home/runner/work/_temp/3abc52d1-36af-410f-a203-4369e56e5565.ps1:2
+Line |
+   2 |  pnpm release:collect-assets -- --input release-assets
+     |  ~~~~
+     | The term 'pnpm' is not recognized as a name of a cmdlet, function,
+     | script file, or executable program. Check the spelling of the name, or
+     | if a path was included, verify that the path is correct and try again.
+Error: Process completed with exit code 1.
+```
+
+根因：
+
+- GitHub Actions 的 job 之间环境是隔离的
+- `verify` 和 `build-desktop` 虽然已经做过 `checkout`、`setup-node`、`corepack enable`、`corepack prepare pnpm...`，但这些上下文不会自动延续到 `publish-release`
+- 原先的 `publish-release` 直接执行 `pnpm release:collect-assets -- --input release-assets`
+- 结果当前 runner 里既没有 `pnpm`，也不保证有仓库源码里的 `package.json` 和 `scripts/release-collect-assets.mjs`
+
+解决路径：
+
+- 在 `publish-release` 开头补 `actions/checkout@v5`
+- 补 `actions/setup-node@v5`
+- 将资产收集改为直接运行 `node scripts/release-collect-assets.mjs --input release-assets`
+- 由于这个脚本只依赖 Node 内置模块，所以这里不需要额外执行 `pnpm install`
+
+验证方式：
+
+- `Collect release files` 不再报 `pnpm is not recognized`
+- `steps.collect.outputs.files` 能成功生成多行输出
+- `Publish GitHub release` 能读取到 `files` 并继续上传 release assets
+
+相关文件：
+
+- `/.github/workflows/release-desktop.yml`
+- `/scripts/release-collect-assets.mjs`
+
+---
+
 ## 当前实现上的高敏感区域
 
 ### 1. `desktop-build.yml` 的动态 matrix 是高敏感配置
@@ -314,6 +357,22 @@ on:
 
 ---
 
+### 4. GitHub Actions 的 job 隔离不能想当然
+
+这次 `publish-release` 暴露出的关键事实是：
+
+- 上一个 job 里装过 `pnpm`，不等于下一个 job 还能直接用
+- 上一个 job 里已经 checkout 过仓库，不等于当前 job 也有脚本文件
+
+以后排查发布链路时，凡是出现“这个命令在前面 job 明明跑过”的想法，都要先回到当前 job 自己的 steps 看：
+
+- 有没有 `actions/checkout`
+- 有没有 `actions/setup-node`
+- 有没有 `corepack` / `pnpm` 激活
+- 当前命令是否其实可以直接用 `node <script>` 代替
+
+---
+
 ## 建议保留的测试护栏
 
 下面这些测试已经证明有价值，不要删：
@@ -347,10 +406,11 @@ on:
 
 ## 当前结论
 
-这次已确认并修复或加固的真实坑点有三个：
+这次已确认并修复或加固的真实坑点有四个：
 
 1. GitHub Actions job 级 `if` 不能直接引用 `matrix.*`
 2. 通过 `pnpm ... -- ...` 调脚本时，CLI 解析必须显式忽略裸 `--`
 3. tag 已推送不代表 release 一定会生成；四个版本文件若未先同步到目标 tag，workflow 会在 preflight 提前失败
+4. `publish-release` 是独立 job，不能直接假设前一个 job 准备好的 `pnpm` / checkout 仍然存在
 
 这几个问题都已经在代码、脚本和测试中补了护栏，后续如果再次出现同类问题，优先先看本文件。
