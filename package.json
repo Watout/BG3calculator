@@ -18,6 +18,11 @@
     "lint": "pnpm exec -- eslint apps packages --max-warnings 0",
     "typecheck": "pnpm exec tsc -b",
     "test": "pnpm exec -- vitest run --config vitest.config.ts",
-    "tauri:dev": "pnpm --filter @bg3dc/desktop-tauri tauri dev"
+    "tauri:dev": "pnpm --filter @bg3dc/desktop-tauri tauri dev",
+    "tauri:build": "pnpm --filter @bg3dc/desktop-tauri tauri build --ci",
+    "tauri:build:windows": "pnpm --filter @bg3dc/desktop-tauri tauri build --ci --target x86_64-pc-windows-msvc",
+    "tauri:build:macos:x64": "pnpm --filter @bg3dc/desktop-tauri tauri build --ci --target x86_64-apple-darwin",
+    "tauri:build:macos:arm64": "pnpm --filter @bg3dc/desktop-tauri tauri build --ci --target aarch64-apple-darwin",
+    "tauri:build:macos:universal": "pnpm --filter @bg3dc/desktop-tauri tauri build --ci --target universal-apple-darwin"
   }
 }

@@ -27,6 +27,31 @@ pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 test"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 tauri:dev"
 ```
 
+桌面端打包命令：
+
+```powershell
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 tauri:build"
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 tauri:build:windows"
+```
+
+macOS 安装包不能在当前 Windows 主机直接产出；仓库已补充 `.github/workflows/desktop-build.yml`，可在 GitHub Actions 的 macOS runner 上输出通用版 macOS 安装包。若你在一台 macOS 机器上本地构建，也可以执行：
+
+```bash
+pnpm tauri:build:macos:universal
+```
+
+构建产物目录：
+
+- Windows：`apps/desktop-tauri/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/`
+- macOS Universal：`apps/desktop-tauri/src-tauri/target/universal-apple-darwin/release/bundle/`
+
+GitHub Actions 手动触发 `desktop-build` 后会上传两份 artifact：
+
+- `bg3calculator-windows-x64`
+- `bg3calculator-macos-universal`
+
+如果后续需要 macOS 签名/公证，再额外补 Apple 证书与 notarization secrets 即可；当前流程先输出未签名安装包，便于开发测试与内部分发。
+
 VS Code 建议安装：
 
 - `tauri-apps.tauri-vscode`
