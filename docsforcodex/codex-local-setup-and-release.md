@@ -119,11 +119,22 @@ pwsh.exe -NoProfile -Command "pnpm test"
 
 当你准备发布时：
 
+先把下面 4 个文件的版本统一改成目标版本，例如 `0.1.2`：
+
+- `package.json`
+- `apps/desktop-tauri/package.json`
+- `apps/desktop-tauri/src-tauri/tauri.conf.json`
+- `apps/desktop-tauri/src-tauri/Cargo.toml`
+
+然后执行：
+
 ```powershell
 pwsh.exe -NoProfile -Command "pnpm release:preflight -- --tag 0.1.2"
 pwsh.exe -NoProfile -Command "git tag 0.1.2"
 pwsh.exe -NoProfile -Command "git push origin 0.1.2"
 ```
+
+如果 preflight 因版本不一致而失败，`release-desktop` 会停在 `verify-workspace`，不会继续构建 Windows / macOS 包，也不会更新 GitHub Release 资产。
 
 随后 GitHub Actions 会自动：
 

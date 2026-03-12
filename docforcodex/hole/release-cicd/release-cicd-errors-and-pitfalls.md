@@ -154,6 +154,47 @@ if (value === "--") {
 - `release-preflight` 会直接失败
 - 构建 job 不应继续开始
 
+2026-03-13 真实复现：
+
+- 远端仓库已经存在 tag `0.1.2`
+- GitHub Actions 上 `release-desktop` run `23021142103` 卡在 `verify-workspace` 并失败
+- 本地在 tag 对应提交上执行 `pnpm release:preflight -- --tag 0.1.2`，得到原始报错：
+
+```text
+Release version mismatch detected for tag 0.1.2:
+- package.json: found 0.1.0, expected 0.1.2
+- apps/desktop-tauri/package.json: found 0.1.0, expected 0.1.2
+- apps/desktop-tauri/src-tauri/tauri.conf.json: found 0.1.0, expected 0.1.2
+- apps/desktop-tauri/src-tauri/Cargo.toml: found 0.1.0, expected 0.1.2
+```
+
+根因：
+
+- `release-desktop.yml` 在真正构建前会调用 `pnpm release:preflight -- --tag "${{ github.ref_name }}"`
+- tag `0.1.2` 指向的提交里，四个版本文件仍然是 `0.1.0`
+- 因此 workflow 在 verify 阶段就被拦下，`build-desktop` 与 `publish-release` 都会被跳过
+
+解决路径：
+
+- 不要只打 tag；先把四个版本文件同步到目标版本
+- 重新运行 `pnpm release:preflight -- --tag <tag>`
+- 然后再推送新的合法 tag
+
+验证结果：
+
+- GitHub Releases API 仅有 `0.1.0`、`0.1.1` 两个 release，没有 `0.1.2`
+- GitHub Tags API 已存在 `0.1.2`
+- 这说明“tag 已存在但 release 未生成”的断点发生在 preflight 之前的 verify 阶段，而不是 release 上传动作本身
+
+相关文件：
+
+- `/.github/workflows/release-desktop.yml`
+- `/scripts/release-preflight.mjs`
+- `/package.json`
+- `/apps/desktop-tauri/package.json`
+- `/apps/desktop-tauri/src-tauri/tauri.conf.json`
+- `/apps/desktop-tauri/src-tauri/Cargo.toml`
+
 这是必须保留的防漂移约束，不能删。
 
 ---
