@@ -1,7 +1,10 @@
+import path from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
   RemoteBuildError,
+  TARGET_NAME,
   buildDefaultOutputDirectory,
   buildDispatchPayload,
   parseCliArgs,
@@ -60,7 +63,7 @@ describe("tauri remote macOS build script", (): void => {
         cwd: "C:/repo",
         requestId: "remote-macos-test"
       })
-    ).toBe("C:\\repo\\.artifacts\\macos-universal\\remote-macos-test");
+    ).toBe(path.join("C:/repo", ".artifacts", TARGET_NAME, "remote-macos-test"));
   });
 
   it("creates the workflow dispatch payload for the macOS target", (): void => {
