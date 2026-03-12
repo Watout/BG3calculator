@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: [
+      "scripts/**/*.test.ts",
       "apps/desktop-tauri/src/**/*.test.ts",
       "apps/desktop-tauri/src/**/*.test.tsx",
       "packages/dice-parser/src/**/*.test.ts",

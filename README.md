@@ -34,7 +34,21 @@ pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 tauri:build"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 tauri:build:windows"
 ```
 
-macOS 安装包不能在当前 Windows 主机直接产出；仓库已补充 `.github/workflows/desktop-build.yml`，可在 GitHub Actions 的 macOS runner 上输出通用版 macOS 安装包。若你在一台 macOS 机器上本地构建，也可以执行：
+从 Windows 本机拉起远程 macOS 打包：
+
+```powershell
+pwsh.exe -NoProfile -Command "$env:GH_TOKEN = '<github-token>'; & corepack.cmd pnpm@10.32.1 tauri:build:macos:remote"
+pwsh.exe -NoProfile -Command "$env:GH_TOKEN = '<github-token>'; & corepack.cmd pnpm@10.32.1 tauri:build:macos:remote -- --dry-run"
+```
+
+说明：
+
+- `GH_TOKEN` / `GITHUB_TOKEN` 至少要能触发当前仓库的 GitHub Actions 并读取 artifact。
+- 远程 macOS 打包要求当前分支工作树干净，且 `origin/<branch>` 与本地 `HEAD` 一致；脚本会在 dispatch 前主动校验。
+- 默认下载目录：`.artifacts/macos-universal/<request_id>/`
+- 远程打包只跑 `macos-universal`，不会顺带重跑 Windows bundle。
+
+macOS 安装包仍然不能在当前 Windows 主机直接本地产出；仓库现在补齐的是“Windows 本机触发 GitHub Actions 的 macOS runner 并回收产物”的链路。若你在一台真实 macOS 机器上本地构建，也可以执行：
 
 ```bash
 pnpm tauri:build:macos:universal
@@ -44,13 +58,14 @@ pnpm tauri:build:macos:universal
 
 - Windows：`apps/desktop-tauri/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/`
 - macOS Universal：`apps/desktop-tauri/src-tauri/target/universal-apple-darwin/release/bundle/`
+- 远程 macOS 下载目录：`.artifacts/macos-universal/<request_id>/`
 
-GitHub Actions 手动触发 `desktop-build` 后会上传两份 artifact：
+GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm tauri:build:macos:remote` 默认只请求并下载：
 
 - `bg3calculator-windows-x64`
 - `bg3calculator-macos-universal`
 
-如果后续需要 macOS 签名/公证，再额外补 Apple 证书与 notarization secrets 即可；当前流程先输出未签名安装包，便于开发测试与内部分发。
+如果后续需要 macOS 签名/公证，再额外补 Apple 证书与 notarization secrets 即可；当前流程先输出未签名安装包，便于开发测试与内部分发，workflow 输入和文档结构也已经为后续接入签名链路预留了位置。
 
 VS Code 建议安装：
 

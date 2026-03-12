@@ -23,6 +23,7 @@
     "tauri:build:windows": "pnpm --filter @bg3dc/desktop-tauri tauri build --ci --target x86_64-pc-windows-msvc",
     "tauri:build:macos:x64": "pnpm --filter @bg3dc/desktop-tauri tauri build --ci --target x86_64-apple-darwin",
     "tauri:build:macos:arm64": "pnpm --filter @bg3dc/desktop-tauri tauri build --ci --target aarch64-apple-darwin",
-    "tauri:build:macos:universal": "pnpm --filter @bg3dc/desktop-tauri tauri build --ci --target universal-apple-darwin"
+    "tauri:build:macos:universal": "pnpm --filter @bg3dc/desktop-tauri tauri build --ci --target universal-apple-darwin",
+    "tauri:build:macos:remote": "node scripts/tauri-remote-macos-build.mjs"
   }
 }

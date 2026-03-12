@@ -1,10 +1,27 @@
 name: desktop-build
+run-name: desktop-build / ${{ inputs.target }} / ${{ inputs.request_id }}
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Build target to run from the desktop matrix
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - windows-x64
+          - macos-universal
+      request_id:
+        description: Client request id for local remote-build orchestration
+        required: false
+        default: manual
+        type: string
 
 jobs:
   build-desktop:
+    if: ${{ inputs.target == 'all' || inputs.target == matrix.name }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
