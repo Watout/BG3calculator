@@ -5,8 +5,7 @@ import {
   MAX_REPEAT_COUNT,
   REPEAT_OPTIONS,
   commitHistoryValue,
-  isDiceExpressionHistoryValue,
-  isSignedIntegerHistoryValue,
+  isExpressionHistoryValue,
 } from "./inputHistory";
 
 describe("input history helpers", (): void => {
@@ -22,23 +21,18 @@ describe("input history helpers", (): void => {
   });
 
   it("accepts valid dice expressions for history", (): void => {
-    expect(isDiceExpressionHistoryValue("1d8+3")).toBe(true);
-    expect(isDiceExpressionHistoryValue("1d8 + 3")).toBe(true);
-    expect(isDiceExpressionHistoryValue("1d")).toBe(false);
-  });
-
-  it("accepts signed integers for fixed attack bonus history", (): void => {
-    expect(isSignedIntegerHistoryValue("5")).toBe(true);
-    expect(isSignedIntegerHistoryValue("+5")).toBe(true);
-    expect(isSignedIntegerHistoryValue("-2")).toBe(true);
-    expect(isSignedIntegerHistoryValue("1d4")).toBe(false);
+    expect(isExpressionHistoryValue("1d8+3")).toBe(true);
+    expect(isExpressionHistoryValue("1d8 + 3")).toBe(true);
+    expect(isExpressionHistoryValue("5")).toBe(true);
+    expect(isExpressionHistoryValue("1d4+5")).toBe(true);
+    expect(isExpressionHistoryValue("1d")).toBe(false);
   });
 
   it("moves duplicates to the top and trims whitespace", (): void => {
     const next = commitHistoryValue(
       ["1d8+3", "2d6+1"],
       " 2d6+1 ",
-      isDiceExpressionHistoryValue,
+      isExpressionHistoryValue,
     );
 
     expect(next).toEqual(["2d6+1", "1d8+3"]);
@@ -48,10 +42,10 @@ describe("input history helpers", (): void => {
     const original = ["1d8+3"];
 
     expect(
-      commitHistoryValue(original, "   ", isDiceExpressionHistoryValue),
+      commitHistoryValue(original, "   ", isExpressionHistoryValue),
     ).toBe(original);
     expect(
-      commitHistoryValue(original, "1d", isDiceExpressionHistoryValue),
+      commitHistoryValue(original, "1d", isExpressionHistoryValue),
     ).toBe(original);
   });
 
@@ -60,7 +54,7 @@ describe("input history helpers", (): void => {
     const next = commitHistoryValue(
       original,
       "999",
-      isSignedIntegerHistoryValue,
+      isExpressionHistoryValue,
     );
 
     expect(next).toHaveLength(HISTORY_LIMIT);

@@ -12,7 +12,6 @@ import {
 } from "@bg3dc/rulesets";
 import { MAX_REPEAT_COUNT } from "./inputHistory";
 
-export type AttackBonusDie = "none" | "1d4" | "1d6" | "1d8" | "1d10" | "1d12";
 export type AdvantageState = "normal" | "advantage" | "disadvantage";
 export type DamageDiceMode = "normal" | "advantage" | "disadvantage";
 export type DamageModifier = "normal" | "resistant" | "vulnerable" | "immune";
@@ -21,10 +20,8 @@ export interface AttackPlanEntryInput {
   readonly id: string;
   readonly mainHandRepeatText: string;
   readonly offHandRepeatText: string;
-  readonly mainHandAttackBonusFixedText: string;
-  readonly mainHandAttackBonusDie: AttackBonusDie;
-  readonly offHandAttackBonusFixedText: string;
-  readonly offHandAttackBonusDie: AttackBonusDie;
+  readonly mainHandAttackBonusExprText: string;
+  readonly offHandAttackBonusExprText: string;
   readonly armorClassText: string;
   readonly mainHandDamageExprText: string;
   readonly offHandDamageExprText: string;
@@ -91,17 +88,6 @@ function parseIntegerText(value: string): number {
   return Math.floor(Number(value));
 }
 
-function buildAttackBonusExpressionText(
-  fixedText: string,
-  die: AttackBonusDie
-): string {
-  if (die === "none") {
-    return fixedText;
-  }
-
-  return `${fixedText}+${die}`;
-}
-
 function validateRepeatText(
   value: string,
   requestId: number,
@@ -159,11 +145,7 @@ function computeOneEntry(
     return asFailure(requestId, `${label}主手伤害表达式错误：${parsedMainHandDamage.error.message}`);
   }
 
-  const mainHandAttackBonusExpressionText = buildAttackBonusExpressionText(
-    entry.mainHandAttackBonusFixedText,
-    entry.mainHandAttackBonusDie
-  );
-  const parsedMainHandAttackBonusExpression = tryParseDiceExpression(mainHandAttackBonusExpressionText);
+  const parsedMainHandAttackBonusExpression = tryParseDiceExpression(entry.mainHandAttackBonusExprText);
   if (!parsedMainHandAttackBonusExpression.ok) {
     return asFailure(
       requestId,
@@ -215,11 +197,7 @@ function computeOneEntry(
       return asFailure(requestId, `${label}副手伤害表达式错误：${parsedOffHandDamage.error.message}`);
     }
 
-    const offHandAttackBonusExpressionText = buildAttackBonusExpressionText(
-      entry.offHandAttackBonusFixedText,
-      entry.offHandAttackBonusDie
-    );
-    const parsedOffHandAttackBonusExpression = tryParseDiceExpression(offHandAttackBonusExpressionText);
+    const parsedOffHandAttackBonusExpression = tryParseDiceExpression(entry.offHandAttackBonusExprText);
     if (!parsedOffHandAttackBonusExpression.ok) {
       return asFailure(
         requestId,

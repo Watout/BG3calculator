@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
 import "./App.css";
 import type {
-  AttackBonusDie,
   AttackPlanEntryInput,
   ComputeEntrySuccess,
   ComputeInput,
@@ -11,8 +10,7 @@ import type {
 import {
   REPEAT_OPTIONS,
   commitHistoryValue,
-  isDiceExpressionHistoryValue,
-  isSignedIntegerHistoryValue,
+  isExpressionHistoryValue,
 } from "./inputHistory";
 
 interface UiResult {
@@ -27,23 +25,9 @@ type Entry = AttackPlanEntryInput;
 type HistoryKey =
   | "mainHandDamageExprText"
   | "offHandDamageExprText"
-  | "mainHandAttackBonusFixedText"
-  | "offHandAttackBonusFixedText";
+  | "mainHandAttackBonusExprText"
+  | "offHandAttackBonusExprText";
 type HistoryState = Readonly<Record<HistoryKey, readonly string[]>>;
-
-interface CompactDropdownOption {
-  readonly value: string;
-  readonly label: string;
-}
-
-interface CompactDropdownProps {
-  readonly ariaLabel: string;
-  readonly className?: string;
-  readonly disabled?: boolean;
-  readonly onChange: (value: string) => void;
-  readonly options: readonly CompactDropdownOption[];
-  readonly value: string;
-}
 
 interface HistoryTextInputProps {
   readonly ariaLabel: string;
@@ -55,7 +39,7 @@ interface HistoryTextInputProps {
   readonly value: string;
 }
 
-interface InlineRepeatControlProps {
+interface InlineRepeatSelectProps {
   readonly ariaLabel: string;
   readonly label: string;
   readonly onChange: (value: string) => void;
@@ -79,29 +63,15 @@ const EMPTY_RESULT: UiResult = {
 const EMPTY_HISTORY: HistoryState = {
   mainHandDamageExprText: [],
   offHandDamageExprText: [],
-  mainHandAttackBonusFixedText: [],
-  offHandAttackBonusFixedText: [],
+  mainHandAttackBonusExprText: [],
+  offHandAttackBonusExprText: [],
 };
 
-const ATTACK_BONUS_DIE_OPTIONS: readonly AttackBonusDie[] = [
-  "none",
-  "1d4",
-  "1d6",
-  "1d8",
-  "1d10",
-  "1d12",
-];
-
-const REPEAT_DROPDOWN_OPTIONS: readonly CompactDropdownOption[] = REPEAT_OPTIONS.map((value) => ({
-  value,
-  label: value,
-}));
-
 const HISTORY_VALIDATORS: Readonly<Record<HistoryKey, (value: string) => boolean>> = {
-  mainHandDamageExprText: isDiceExpressionHistoryValue,
-  offHandDamageExprText: isDiceExpressionHistoryValue,
-  mainHandAttackBonusFixedText: isSignedIntegerHistoryValue,
-  offHandAttackBonusFixedText: isSignedIntegerHistoryValue,
+  mainHandDamageExprText: isExpressionHistoryValue,
+  offHandDamageExprText: isExpressionHistoryValue,
+  mainHandAttackBonusExprText: isExpressionHistoryValue,
+  offHandAttackBonusExprText: isExpressionHistoryValue,
 };
 
 function makeDefaultEntry(): Entry {
@@ -109,10 +79,8 @@ function makeDefaultEntry(): Entry {
     id: `entry-${crypto.randomUUID()}`,
     mainHandRepeatText: "1",
     offHandRepeatText: "1",
-    mainHandAttackBonusFixedText: "5",
-    mainHandAttackBonusDie: "none",
-    offHandAttackBonusFixedText: "5",
-    offHandAttackBonusDie: "none",
+    mainHandAttackBonusExprText: "5",
+    offHandAttackBonusExprText: "5",
     armorClassText: "15",
     mainHandDamageExprText: "1d8+3",
     offHandDamageExprText: "",
@@ -179,65 +147,6 @@ function useDismissiblePopup(
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose, rootRef]);
-}
-
-function CompactDropdown({
-  ariaLabel,
-  className,
-  disabled = false,
-  onChange,
-  options,
-  value,
-}: CompactDropdownProps): JSX.Element {
-  const [isOpen, setIsOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-
-  useDismissiblePopup(isOpen, rootRef, () => setIsOpen(false));
-
-  const selectedOption = options.find((option) => option.value === value);
-  const resolvedLabel = selectedOption?.label ?? value;
-  const resolvedClassName =
-    className === undefined ? "compact-dropdown" : `compact-dropdown ${className}`;
-
-  return (
-    <div ref={rootRef} className={resolvedClassName}>
-      <button
-        type="button"
-        className="compact-select-trigger"
-        aria-haspopup="listbox"
-        aria-expanded={isOpen}
-        aria-label={ariaLabel}
-        disabled={disabled}
-        onClick={() => setIsOpen((previous) => !previous)}
-      >
-        <span className="compact-select-value">{resolvedLabel}</span>
-        <span className="compact-select-icon" aria-hidden="true">
-          {isOpen ? "▲" : "▼"}
-        </span>
-      </button>
-
-      {isOpen ? (
-        <div className="compact-dropdown-menu" role="listbox" aria-label={ariaLabel}>
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={`compact-option${option.value === value ? " selected" : ""}`}
-              role="option"
-              aria-selected={option.value === value}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                onChange(option.value);
-                setIsOpen(false);
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 function HistoryTextInput({
@@ -351,22 +260,27 @@ function InfoHint({ text }: { readonly text: string }): JSX.Element {
   );
 }
 
-export function InlineRepeatControl({
+export function InlineRepeatSelect({
   ariaLabel,
   label,
   onChange,
   value,
-}: InlineRepeatControlProps): JSX.Element {
+}: InlineRepeatSelectProps): JSX.Element {
   return (
     <span className="label-repeat-inline">
       <span className="label-repeat-text">{label}</span>
-      <CompactDropdown
-        ariaLabel={ariaLabel}
-        className="entry-repeat-dropdown label-repeat-dropdown"
+      <select
+        aria-label={ariaLabel}
+        className="label-repeat-select"
         value={value}
-        options={REPEAT_DROPDOWN_OPTIONS}
-        onChange={onChange}
-      />
+        onChange={(event) => onChange(event.currentTarget.value)}
+      >
+        {REPEAT_OPTIONS.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
     </span>
   );
 }
@@ -378,13 +292,13 @@ export function LabelWithInfo({
 }: LabelWithInfoProps): JSX.Element {
   return (
     <span className="label-with-info">
-      <span className="label-main">
+      <span className="label-heading">
         <span className="label-title">{title}</span>
-        {trailing === undefined ? null : (
-          <span className="label-trailing">{trailing}</span>
-        )}
+        <InfoHint text={info} />
       </span>
-      <InfoHint text={info} />
+      {trailing === undefined ? null : (
+        <span className="label-trailing">{trailing}</span>
+      )}
     </span>
   );
 }
@@ -599,7 +513,6 @@ function App(): JSX.Element {
           {entries.map((entry, index) => {
             const entryResult = findEntryResult(result.entries, entry.id);
             const isNormalDamageMode = entry.damageDiceMode === "normal";
-            const hasOffHand = entry.offHandDamageExprText.trim().length > 0;
             const hasResolvedOffHand = entryResult?.hasOffHandStep === true;
 
             return (
@@ -625,7 +538,7 @@ function App(): JSX.Element {
                         title="主手伤害骰表达式"
                         info="例如 1d8+3、2d6+1。重击时只翻倍骰子部分，不翻倍常数。"
                         trailing={
-                          <InlineRepeatControl
+                          <InlineRepeatSelect
                             ariaLabel={`攻击项 ${index + 1} 主手执行次数`}
                             label="主手执行"
                             value={entry.mainHandRepeatText}
@@ -655,39 +568,21 @@ function App(): JSX.Element {
                     <label>
                       <LabelWithInfo
                         title="主手攻击加值"
-                        info="先填固定值，再可选附加骰（如祝福 1d4）。主手命中判定使用 d20 + 主手攻击加值。"
+                        info="支持完整表达式，如 5、1d4+5、2+1d6。主手命中判定使用 d20 + 主手攻击加值表达式。"
                       />
-                      <div className="inline-row attack-bonus-row">
-                        <HistoryTextInput
-                          ariaLabel={`攻击项 ${index + 1} 主手攻击加值固定值`}
-                          value={entry.mainHandAttackBonusFixedText}
-                          history={historyState.mainHandAttackBonusFixedText}
-                          onChange={(value) =>
-                            updateEntry(entry.id, {
-                              mainHandAttackBonusFixedText: value,
-                            })
-                          }
-                          onCommit={(value) =>
-                            commitHistory("mainHandAttackBonusFixedText", value)
-                          }
-                        />
-                        <select
-                          className="compact-select"
-                          value={entry.mainHandAttackBonusDie}
-                          onChange={(event) =>
-                            updateEntry(entry.id, {
-                              mainHandAttackBonusDie: event.currentTarget
-                                .value as AttackBonusDie,
-                            })
-                          }
-                        >
-                          {ATTACK_BONUS_DIE_OPTIONS.map((die) => (
-                            <option key={die} value={die}>
-                              {die === "none" ? "无" : die}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <HistoryTextInput
+                        ariaLabel={`攻击项 ${index + 1} 主手攻击加值表达式`}
+                        value={entry.mainHandAttackBonusExprText}
+                        history={historyState.mainHandAttackBonusExprText}
+                        onChange={(value) =>
+                          updateEntry(entry.id, {
+                            mainHandAttackBonusExprText: value,
+                          })
+                        }
+                        onCommit={(value) =>
+                          commitHistory("mainHandAttackBonusExprText", value)
+                        }
+                      />
                     </label>
                   </div>
 
@@ -695,20 +590,18 @@ function App(): JSX.Element {
                     <label>
                       <LabelWithInfo
                         title="副手伤害骰表达式"
-                        info="留空表示该攻击项不计算副手段；填写后自动按主手+副手双段聚合。"
+                        info="留空表示该攻击项不计算副手段；此时副手执行次数与副手攻击加值会被忽略。填写后自动按主手+副手双段聚合。"
                         trailing={
-                          hasOffHand ? (
-                            <InlineRepeatControl
-                              ariaLabel={`攻击项 ${index + 1} 副手执行次数`}
-                              label="副手执行"
-                              value={entry.offHandRepeatText}
-                              onChange={(value) =>
-                                updateEntry(entry.id, {
-                                  offHandRepeatText: value,
-                                })
-                              }
-                            />
-                          ) : undefined
+                          <InlineRepeatSelect
+                            ariaLabel={`攻击项 ${index + 1} 副手执行次数`}
+                            label="副手执行"
+                            value={entry.offHandRepeatText}
+                            onChange={(value) =>
+                              updateEntry(entry.id, {
+                                offHandRepeatText: value,
+                              })
+                            }
+                          />
                         }
                       />
                       <HistoryTextInput
@@ -727,55 +620,25 @@ function App(): JSX.Element {
                       />
                     </label>
 
-                    {hasOffHand ? (
-                      <label>
-                        <LabelWithInfo
-                          title="副手攻击加值"
-                          info="仅在副手存在时生效。副手命中判定使用 d20 + 副手攻击加值。"
-                        />
-                        <div className="inline-row attack-bonus-row">
-                          <HistoryTextInput
-                            ariaLabel={`攻击项 ${index + 1} 副手攻击加值固定值`}
-                            value={entry.offHandAttackBonusFixedText}
-                            history={historyState.offHandAttackBonusFixedText}
-                            onChange={(value) =>
-                              updateEntry(entry.id, {
-                                offHandAttackBonusFixedText: value,
-                              })
-                            }
-                            onCommit={(value) =>
-                              commitHistory("offHandAttackBonusFixedText", value)
-                            }
-                          />
-                          <select
-                            className="compact-select"
-                            value={entry.offHandAttackBonusDie}
-                            onChange={(event) =>
-                              updateEntry(entry.id, {
-                                offHandAttackBonusDie: event.currentTarget
-                                  .value as AttackBonusDie,
-                              })
-                            }
-                          >
-                            {ATTACK_BONUS_DIE_OPTIONS.map((die) => (
-                              <option key={die} value={die}>
-                                {die === "none" ? "无" : die}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </label>
-                    ) : (
-                      <label className="ghost-field" aria-hidden="true">
-                        <span>副手攻击加值</span>
-                        <div className="inline-row attack-bonus-row">
-                          <input className="compact-input" disabled />
-                          <select className="compact-select" disabled>
-                            <option value="none">无</option>
-                          </select>
-                        </div>
-                      </label>
-                    )}
+                    <label>
+                      <LabelWithInfo
+                        title="副手攻击加值"
+                        info="支持完整表达式，如 5、1d4+5、2+1d6。仅在副手伤害表达式非空时参与计算。"
+                      />
+                      <HistoryTextInput
+                        ariaLabel={`攻击项 ${index + 1} 副手攻击加值表达式`}
+                        value={entry.offHandAttackBonusExprText}
+                        history={historyState.offHandAttackBonusExprText}
+                        onChange={(value) =>
+                          updateEntry(entry.id, {
+                            offHandAttackBonusExprText: value,
+                          })
+                        }
+                        onCommit={(value) =>
+                          commitHistory("offHandAttackBonusExprText", value)
+                        }
+                      />
+                    </label>
                   </div>
 
                   <label>

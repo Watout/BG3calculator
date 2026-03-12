@@ -13,14 +13,9 @@ function normalizeValue(rawValue: string): string {
   return rawValue.trim();
 }
 
-export function isDiceExpressionHistoryValue(value: string): boolean {
+export function isExpressionHistoryValue(value: string): boolean {
   const normalized = normalizeValue(value);
   return normalized.length > 0 && tryParseDiceExpression(normalized).ok;
-}
-
-export function isSignedIntegerHistoryValue(value: string): boolean {
-  const normalized = normalizeValue(value);
-  return /^[+-]?\d+$/u.test(normalized);
 }
 
 export function commitHistoryValue(

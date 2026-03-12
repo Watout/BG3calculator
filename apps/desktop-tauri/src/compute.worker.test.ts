@@ -10,10 +10,8 @@ function makeEntry(overrides: Partial<AttackPlanEntryInput> = {}): AttackPlanEnt
     id: "entry-1",
     mainHandRepeatText: "1",
     offHandRepeatText: "1",
-    mainHandAttackBonusFixedText: "5",
-    mainHandAttackBonusDie: "none",
-    offHandAttackBonusFixedText: "5",
-    offHandAttackBonusDie: "none",
+    mainHandAttackBonusExprText: "5",
+    offHandAttackBonusExprText: "5",
     armorClassText: "15",
     mainHandDamageExprText: "1d8+3",
     offHandDamageExprText: "",
@@ -98,8 +96,7 @@ describe("compute worker attack plan", (): void => {
         entries: [
           makeEntry({
             offHandDamageExprText: "1d6+2",
-            offHandAttackBonusFixedText: "0",
-            offHandAttackBonusDie: "none"
+            offHandAttackBonusExprText: "0"
           })
         ]
       })
@@ -110,8 +107,7 @@ describe("compute worker attack plan", (): void => {
         entries: [
           makeEntry({
             offHandDamageExprText: "1d6+2",
-            offHandAttackBonusFixedText: "10",
-            offHandAttackBonusDie: "none"
+            offHandAttackBonusExprText: "10"
           })
         ]
       })
@@ -126,6 +122,28 @@ describe("compute worker attack plan", (): void => {
     expect(Number(highBonus.entries[0]?.expectedOffHand ?? "0")).toBeGreaterThan(
       Number(lowBonus.entries[0]?.expectedOffHand ?? "0")
     );
+  });
+
+  it("accepts dice expressions for attack bonus inputs", (): void => {
+    const output = computeAttackPlan(
+      makeInput({
+        entries: [
+          makeEntry({
+            mainHandAttackBonusExprText: "1d4+5",
+            offHandDamageExprText: "1d6+2",
+            offHandAttackBonusExprText: "1d4+3"
+          })
+        ]
+      })
+    );
+
+    expect(output.ok).toBe(true);
+    if (!output.ok) {
+      return;
+    }
+
+    expect(output.entries[0]?.mainHandProbabilitySummary.includes("hit")).toBe(true);
+    expect(output.entries[0]?.offHandProbabilitySummary.includes("hit")).toBe(true);
   });
 
   it("applies independent main-hand and offhand repeat counts", (): void => {
@@ -242,7 +260,7 @@ describe("compute worker attack plan", (): void => {
       makeInput({
         entries: [
           makeEntry({
-            mainHandAttackBonusFixedText: "7",
+            mainHandAttackBonusExprText: "7",
             mainHandDamageExprText: "10d10"
           })
         ],
@@ -261,6 +279,29 @@ describe("compute worker attack plan", (): void => {
     expect(output.fullCritExpectedPerPlan).toBe("110.0000");
     expect(output.expectedTotal).toBe("38.5000");
     expect(output.fullCritExpectedTotal).toBe("110.0000");
+  });
+
+  it("ignores offhand repeat and attack bonus values when offhand damage is empty", (): void => {
+    const output = computeAttackPlan(
+      makeInput({
+        entries: [
+          makeEntry({
+            offHandDamageExprText: "   ",
+            offHandRepeatText: "21",
+            offHandAttackBonusExprText: "1d"
+          })
+        ]
+      })
+    );
+
+    expect(output.ok).toBe(true);
+    if (!output.ok) {
+      return;
+    }
+
+    expect(output.entries[0]?.hasOffHandStep).toBe(false);
+    expect(output.entries[0]?.offHandRepeat).toBe(0);
+    expect(output.entries[0]?.expectedOffHandTotal).toBe("0.0000");
   });
 
   it("returns repeat-specific validation errors", (): void => {
