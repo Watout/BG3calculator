@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import "./App.css";
 import type {
   AttackBonusDie,
@@ -53,6 +53,19 @@ interface HistoryTextInputProps {
   readonly onCommit: (value: string) => void;
   readonly placeholder?: string;
   readonly value: string;
+}
+
+interface InlineRepeatControlProps {
+  readonly ariaLabel: string;
+  readonly label: string;
+  readonly onChange: (value: string) => void;
+  readonly value: string;
+}
+
+interface LabelWithInfoProps {
+  readonly info: string;
+  readonly title: string;
+  readonly trailing?: ReactNode;
 }
 
 const EMPTY_RESULT: UiResult = {
@@ -338,16 +351,39 @@ function InfoHint({ text }: { readonly text: string }): JSX.Element {
   );
 }
 
-function LabelWithInfo({
-  title,
-  info,
-}: {
-  readonly title: string;
-  readonly info: string;
-}): JSX.Element {
+export function InlineRepeatControl({
+  ariaLabel,
+  label,
+  onChange,
+  value,
+}: InlineRepeatControlProps): JSX.Element {
   return (
-    <span className="label-title">
-      {title}
+    <span className="label-repeat-inline">
+      <span className="label-repeat-text">{label}</span>
+      <CompactDropdown
+        ariaLabel={ariaLabel}
+        className="entry-repeat-dropdown label-repeat-dropdown"
+        value={value}
+        options={REPEAT_DROPDOWN_OPTIONS}
+        onChange={onChange}
+      />
+    </span>
+  );
+}
+
+export function LabelWithInfo({
+  info,
+  title,
+  trailing,
+}: LabelWithInfoProps): JSX.Element {
+  return (
+    <span className="label-with-info">
+      <span className="label-main">
+        <span className="label-title">{title}</span>
+        {trailing === undefined ? null : (
+          <span className="label-trailing">{trailing}</span>
+        )}
+      </span>
       <InfoHint text={info} />
     </span>
   );
@@ -571,20 +607,6 @@ function App(): JSX.Element {
                 <header className="entry-head">
                   <div className="entry-head-main">
                     <h2>攻击项 {index + 1}</h2>
-                    <div className="entry-repeat-inline">
-                      <span className="entry-repeat-label">主手执行</span>
-                      <CompactDropdown
-                        ariaLabel={`攻击项 ${index + 1} 主手执行次数`}
-                        className="entry-repeat-dropdown"
-                        value={entry.mainHandRepeatText}
-                        options={REPEAT_DROPDOWN_OPTIONS}
-                        onChange={(value) =>
-                          updateEntry(entry.id, {
-                            mainHandRepeatText: value,
-                          })
-                        }
-                      />
-                    </div>
                   </div>
                   <button
                     type="button"
@@ -602,6 +624,18 @@ function App(): JSX.Element {
                       <LabelWithInfo
                         title="主手伤害骰表达式"
                         info="例如 1d8+3、2d6+1。重击时只翻倍骰子部分，不翻倍常数。"
+                        trailing={
+                          <InlineRepeatControl
+                            ariaLabel={`攻击项 ${index + 1} 主手执行次数`}
+                            label="主手执行"
+                            value={entry.mainHandRepeatText}
+                            onChange={(value) =>
+                              updateEntry(entry.id, {
+                                mainHandRepeatText: value,
+                              })
+                            }
+                          />
+                        }
                       />
                       <HistoryTextInput
                         ariaLabel={`攻击项 ${index + 1} 主手伤害骰表达式`}
@@ -662,6 +696,20 @@ function App(): JSX.Element {
                       <LabelWithInfo
                         title="副手伤害骰表达式"
                         info="留空表示该攻击项不计算副手段；填写后自动按主手+副手双段聚合。"
+                        trailing={
+                          hasOffHand ? (
+                            <InlineRepeatControl
+                              ariaLabel={`攻击项 ${index + 1} 副手执行次数`}
+                              label="副手执行"
+                              value={entry.offHandRepeatText}
+                              onChange={(value) =>
+                                updateEntry(entry.id, {
+                                  offHandRepeatText: value,
+                                })
+                              }
+                            />
+                          ) : undefined
+                        }
                       />
                       <HistoryTextInput
                         ariaLabel={`攻击项 ${index + 1} 副手伤害骰表达式`}
@@ -729,31 +777,6 @@ function App(): JSX.Element {
                       </label>
                     )}
                   </div>
-
-                  {hasOffHand ? (
-                    <label className="compact-field">
-                      <LabelWithInfo
-                        title="副手执行次数"
-                        info="副手这一段在该攻击项内重复结算的次数。"
-                      />
-                      <CompactDropdown
-                        ariaLabel={`攻击项 ${index + 1} 副手执行次数`}
-                        className="entry-repeat-dropdown"
-                        value={entry.offHandRepeatText}
-                        options={REPEAT_DROPDOWN_OPTIONS}
-                        onChange={(value) =>
-                          updateEntry(entry.id, {
-                            offHandRepeatText: value,
-                          })
-                        }
-                      />
-                    </label>
-                  ) : (
-                    <label className="ghost-field compact-field" aria-hidden="true">
-                      <span>副手执行次数</span>
-                      <span className="compact-ghost-slot" />
-                    </label>
-                  )}
 
                   <label>
                     <LabelWithInfo
