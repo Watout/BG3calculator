@@ -43,22 +43,20 @@ jobs:
     if: ${{ inputs.target == 'all' || inputs.target == matrix.name }}
 ```
 
-修复方式：
+解决路径：
 
 - 不再用 job 级 `if` 过滤 matrix
 - 改为根据 `inputs.target` 动态生成 `strategy.matrix.include`
 - 这样在 workflow 解析时只依赖 `inputs.*`，避免访问未展开的 `matrix.*`
 
-当前修复后策略：
+验证方式：
 
-- `target=windows-x64` 时只生成 Windows matrix
-- `target=macos-universal` 时只生成 macOS matrix
-- `target=all` 时生成完整双平台 matrix
+- GitHub Actions 不再报 `Unrecognized named-value: 'matrix'`
+- 手动触发 `desktop-build` 时可以按 `windows-x64`、`macos-universal`、`all` 三种输入展开 matrix
 
-结论：
+相关文件：
 
-- GitHub Actions 里，`matrix.*` 不是任何位置都能用
-- 尤其是 job 级 `if:`，不要假设它能访问 matrix 展开结果
+- `/.github/workflows/desktop-build.yml`
 
 ---
 
@@ -83,10 +81,10 @@ Unknown argument: --
 
 影响范围：
 
-- `scripts/release-preflight.mjs`
-- `scripts/release-collect-assets.mjs`
+- `/scripts/release-preflight.mjs`
+- `/scripts/release-collect-assets.mjs`
 
-修复方式：
+解决路径：
 
 - 在两个脚本的 `parseCliArgs()` 中显式忽略独立的 `--`
 
@@ -98,10 +96,18 @@ if (value === "--") {
 }
 ```
 
-结论：
+验证方式：
 
-- 只要脚本通过 `pnpm <script> -- <args>` 调用，就必须考虑裸 `--`
-- 自己写的 CLI 解析器不要假设 argv 里永远只有业务参数
+- `pnpm release:preflight -- --tag 0.1.0` 通过
+- `pnpm release:collect-assets -- --help` 能正常输出帮助
+- 对应 Vitest 测试覆盖了裸 `--` 场景
+
+相关文件：
+
+- `/scripts/release-preflight.mjs`
+- `/scripts/release-collect-assets.mjs`
+- `/scripts/release-preflight.test.ts`
+- `/scripts/release-collect-assets.test.ts`
 
 ---
 
