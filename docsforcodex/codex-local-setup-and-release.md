@@ -93,7 +93,7 @@ pwsh.exe -NoProfile -Command "pnpm release:sync-version -- --tag 0.1.8"
 pwsh.exe -NoProfile -Command "pnpm release:preflight -- --tag 0.1.8"
 pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
 pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm cicd:dispatch-workflow -- --workflow desktop-build.yml --ref main --input target=macos-universal --input request_id=manual --wait"
-pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; pnpm cicd:apply-github-guardrails"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; pnpm cicd:apply-github-guardrails"
 ```
 
 如果你同时维护多个 GitHub 项目，推荐不要长期共用一个全局 token，而是为每个仓库单独保存项目专属环境变量。当前仓库已经支持自动识别：

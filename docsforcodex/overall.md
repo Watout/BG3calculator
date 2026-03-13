@@ -34,8 +34,8 @@ pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:preflight -- -
 ```powershell
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:prepare -- --tag 0.1.8"
 pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 release:prepare -- --tag 0.1.8"
-pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; & corepack.cmd pnpm@10.32.1 cicd:apply-github-guardrails"
-pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; & corepack.cmd pnpm@10.32.1 cicd:apply-github-guardrails -- --dry-run"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 cicd:apply-github-guardrails"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 cicd:apply-github-guardrails -- --dry-run"
 pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 cicd:dispatch-workflow -- --workflow desktop-build.yml --ref main --input target=macos-universal --input request_id=manual --wait"
 ```
 
@@ -56,7 +56,7 @@ pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'
 说明：
 
 - `GH_TOKEN` / `GITHUB_TOKEN` 至少要能触发当前仓库的 GitHub Actions 并读取 artifact。
-- 仓库保护规则脚本额外支持 `GH_ADMIN_TOKEN` / `GITHUB_ADMIN_TOKEN` 以及仓库专属变量，例如 `GITHUB_ADMIN_TOKEN_BG3CALCULATOR`。
+- 仓库保护规则脚本默认直接复用 `GH_TOKEN` / `GITHUB_TOKEN` 及仓库专属变量，例如 `GITHUB_TOKEN_BG3CALCULATOR`；旧的 `GH_ADMIN_TOKEN` / `GITHUB_ADMIN_TOKEN` 仅保留兼容。
 - 现在也支持项目专属环境变量，例如 `GH_TOKEN_BG3CALCULATOR`、`GITHUB_TOKEN_BG3CALCULATOR`、`GH_TOKEN_WATOUT_BG3CALCULATOR`、`GITHUB_TOKEN_WATOUT_BG3CALCULATOR`。
 - 如果你同时维护多个仓库，优先给每个仓库单独创建 Fine-grained token，并保存到项目专属环境变量。
 - 远程 macOS 打包要求当前分支工作树干净，且 `origin/<branch>` 与本地 `HEAD` 一致；脚本会在 dispatch 前主动校验。
@@ -96,7 +96,7 @@ GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm 
 - `pnpm cicd:apply-github-guardrails`：给 GitHub 仓库下发 `main` 保护和正式 release tag ruleset 的治理脚本
 - `pnpm cicd:dispatch-workflow`：通用 GitHub Actions `workflow_dispatch` 入口，不依赖 `gh`
 - `pnpm release:prepare`、`pnpm cicd:dispatch-workflow`、`pnpm tauri:build:macos:remote`、`pnpm release:publish` 都支持按仓库名自动发现专属 token
-- `pnpm cicd:apply-github-guardrails` 优先读取 `GH_ADMIN_TOKEN` / `GITHUB_ADMIN_TOKEN`，也支持按仓库名自动发现 admin token
+- `pnpm cicd:apply-github-guardrails` 优先读取 `GH_TOKEN` / `GITHUB_TOKEN` 及仓库专属变量；旧的 admin 别名仍可用，但不再是默认推荐
 - 通用流程说明见：`docsforcodex/local-cicd-orchestration.md`
 
 正式发布约定：

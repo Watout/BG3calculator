@@ -113,8 +113,8 @@ pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
 优先使用仓库脚本下发这些设置，而不是手工去 GitHub settings 里逐项点击：
 
 ```powershell
-pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; pnpm cicd:apply-github-guardrails"
-pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; pnpm cicd:apply-github-guardrails -- --dry-run"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; pnpm cicd:apply-github-guardrails"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; pnpm cicd:apply-github-guardrails -- --dry-run"
 ```
 
 脚本会把下面这些约束应用到 GitHub 仓库侧：
@@ -131,8 +131,8 @@ pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-a
 
 注意：
 
-- 这里需要的是带仓库 `Administration: Read and write` 权限的 token。
-- 只够 dispatch workflow 的普通 `GH_TOKEN` / `GITHUB_TOKEN` 不一定能修改 branch protection 或 ruleset。
+- 推荐直接把同一个高权限 token 放进 `GITHUB_TOKEN_BG3CALCULATOR`。
+- 只要这个 token 同时带 `Administration: Read and write` 和 `Actions: Read and write`，就够整个仓库 CI/CD 使用。
 
 ## 必须遵守的约束
 

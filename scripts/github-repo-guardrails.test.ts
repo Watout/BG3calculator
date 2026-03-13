@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  GENERIC_GITHUB_TOKEN_ENV_NAMES,
   GITHUB_ACTIONS_APP_ID,
   MAIN_BRANCH_REQUIRED_CHECKS,
   RELEASE_TAG_PATTERN,
   RELEASE_TAG_RULESET_NAME,
   applyGitHubRepoGuardrails,
-  buildAdministrationTokenEnvNames,
+  buildGuardrailsTokenEnvNames,
+  buildLegacyAdministrationTokenEnvNames,
   buildMainBranchProtectionPayload,
   buildPersonalRepoReleaseTagRulesetPayload,
   buildStrictReleaseTagRulesetPayload,
@@ -28,8 +30,20 @@ describe("github repository guardrails script", (): void => {
     });
   });
 
-  it("builds repository-scoped admin token names", (): void => {
-    expect(buildAdministrationTokenEnvNames("Watout/BG3calculator")).toEqual([
+  it("builds preferred guardrails token env names", (): void => {
+    expect(GENERIC_GITHUB_TOKEN_ENV_NAMES).toEqual(["GH_TOKEN", "GITHUB_TOKEN"]);
+    expect(buildGuardrailsTokenEnvNames("Watout/BG3calculator")).toEqual([
+      "GH_TOKEN",
+      "GITHUB_TOKEN",
+      "GH_TOKEN_BG3CALCULATOR",
+      "GITHUB_TOKEN_BG3CALCULATOR",
+      "GH_TOKEN_WATOUT_BG3CALCULATOR",
+      "GITHUB_TOKEN_WATOUT_BG3CALCULATOR"
+    ]);
+  });
+
+  it("builds legacy admin token aliases", (): void => {
+    expect(buildLegacyAdministrationTokenEnvNames("Watout/BG3calculator")).toEqual([
       "GH_ADMIN_TOKEN",
       "GITHUB_ADMIN_TOKEN",
       "GH_ADMIN_TOKEN_BG3CALCULATOR",
@@ -39,7 +53,7 @@ describe("github repository guardrails script", (): void => {
     ]);
   });
 
-  it("prefers admin tokens but falls back to generic repository tokens", (): void => {
+  it("prefers generic repository tokens but still accepts legacy admin aliases", (): void => {
     expect(
       getGitHubAdministrationToken(
         {
@@ -51,8 +65,8 @@ describe("github repository guardrails script", (): void => {
         }
       )
     ).toEqual({
-      source: "GITHUB_ADMIN_TOKEN_BG3CALCULATOR",
-      token: "admin-token"
+      source: "GITHUB_TOKEN_BG3CALCULATOR",
+      token: "dispatch-token"
     });
 
     expect(
@@ -65,8 +79,22 @@ describe("github repository guardrails script", (): void => {
         }
       )
     ).toEqual({
-      source: "generic-token",
+      source: "GITHUB_TOKEN_BG3CALCULATOR",
       token: "dispatch-token"
+    });
+
+    expect(
+      getGitHubAdministrationToken(
+        {
+          GITHUB_ADMIN_TOKEN_BG3CALCULATOR: "admin-token"
+        },
+        {
+          repositorySlug: "Watout/BG3calculator"
+        }
+      )
+    ).toEqual({
+      source: "GITHUB_ADMIN_TOKEN_BG3CALCULATOR",
+      token: "admin-token"
     });
   });
 
@@ -76,7 +104,7 @@ describe("github repository guardrails script", (): void => {
         repositorySlug: "Watout/BG3calculator"
       })
     ).toBe(
-      "Set GH_ADMIN_TOKEN, GITHUB_ADMIN_TOKEN, GH_ADMIN_TOKEN_BG3CALCULATOR, GITHUB_ADMIN_TOKEN_BG3CALCULATOR, GH_ADMIN_TOKEN_WATOUT_BG3CALCULATOR, GITHUB_ADMIN_TOKEN_WATOUT_BG3CALCULATOR before applying GitHub repository guardrails."
+      "Set one GitHub token with repository Administration permission before applying GitHub repository guardrails. Preferred env names: GH_TOKEN, GITHUB_TOKEN, GH_TOKEN_BG3CALCULATOR, GITHUB_TOKEN_BG3CALCULATOR, GH_TOKEN_WATOUT_BG3CALCULATOR, GITHUB_TOKEN_WATOUT_BG3CALCULATOR. Legacy admin aliases are also accepted: GH_ADMIN_TOKEN, GITHUB_ADMIN_TOKEN, GH_ADMIN_TOKEN_BG3CALCULATOR, GITHUB_ADMIN_TOKEN_BG3CALCULATOR, GH_ADMIN_TOKEN_WATOUT_BG3CALCULATOR, GITHUB_ADMIN_TOKEN_WATOUT_BG3CALCULATOR."
     );
   });
 
@@ -196,7 +224,7 @@ describe("github repository guardrails script", (): void => {
       commandRunner,
       cwd: process.cwd(),
       env: {
-        GITHUB_ADMIN_TOKEN_BG3CALCULATOR: "admin-token"
+        GITHUB_TOKEN_BG3CALCULATOR: "admin-token"
       },
       fetchImpl: async () => ({
         json: async () => ({

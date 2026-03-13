@@ -14,6 +14,7 @@ export const MAIN_BRANCH_REQUIRED_CHECKS = ["lint-typecheck-test", "automation-g
 export const RELEASE_TAG_RULESET_NAME = "Protect release tags";
 export const RELEASE_TAG_PATTERN = "refs/tags/*.*.*";
 export const GITHUB_ACTIONS_APP_ID = 15368;
+export const GENERIC_GITHUB_TOKEN_ENV_NAMES = ["GH_TOKEN", "GITHUB_TOKEN"];
 
 export class GitHubRepoGuardrailsError extends Error {
   constructor(message) {
@@ -84,15 +85,19 @@ export function printHelp() {
     "  --help, -h                 Show this help text.",
     "",
     "Required environment variables:",
+    "  GH_TOKEN or GITHUB_TOKEN   Preferred GitHub token with repository Administration permission.",
+    "                             Repository-scoped token names are also supported,",
+    "                             for example GITHUB_TOKEN_BG3CALCULATOR.",
     "  GH_ADMIN_TOKEN or GITHUB_ADMIN_TOKEN",
-    "                             Preferred GitHub token with repository Administration permission.",
-    "                             Repository-scoped admin token fallbacks are also supported,",
-    "                             for example GITHUB_ADMIN_TOKEN_BG3CALCULATOR.",
-    "  GH_TOKEN or GITHUB_TOKEN   Accepted as a fallback, but they still must include repository Administration permission."
+    "                             Legacy admin-specific aliases are still accepted for compatibility."
   ].join("\n");
 }
 
-export function buildAdministrationTokenEnvNames(repositorySlug) {
+export function buildGuardrailsTokenEnvNames(repositorySlug) {
+  return [...GENERIC_GITHUB_TOKEN_ENV_NAMES, ...buildRepositoryScopedTokenEnvNames(repositorySlug)];
+}
+
+export function buildLegacyAdministrationTokenEnvNames(repositorySlug) {
   const genericNames = ["GH_ADMIN_TOKEN", "GITHUB_ADMIN_TOKEN"];
   const scopedNames = buildRepositoryScopedTokenEnvNames(repositorySlug).flatMap((envName) => {
     if (envName.startsWith("GH_TOKEN_")) {
@@ -110,12 +115,26 @@ export function buildAdministrationTokenEnvNames(repositorySlug) {
 }
 
 export function formatAdministrationTokenRequirement({ repositorySlug = null } = {}) {
-  const names = buildAdministrationTokenEnvNames(repositorySlug);
-  return `Set ${names.join(", ")} before applying GitHub repository guardrails.`;
+  const preferredNames = buildGuardrailsTokenEnvNames(repositorySlug);
+  const legacyNames = buildLegacyAdministrationTokenEnvNames(repositorySlug);
+  return [
+    "Set one GitHub token with repository Administration permission before applying GitHub repository guardrails.",
+    `Preferred env names: ${preferredNames.join(", ")}.`,
+    `Legacy admin aliases are also accepted: ${legacyNames.join(", ")}.`
+  ].join(" ");
 }
 
 export function getGitHubAdministrationToken(env = process.env, { repositorySlug = null } = {}) {
-  for (const envName of buildAdministrationTokenEnvNames(repositorySlug)) {
+  for (const envName of buildGuardrailsTokenEnvNames(repositorySlug)) {
+    if (env[envName]) {
+      return {
+        source: envName,
+        token: env[envName]
+      };
+    }
+  }
+
+  for (const envName of buildLegacyAdministrationTokenEnvNames(repositorySlug)) {
     if (env[envName]) {
       return {
         source: envName,
@@ -125,14 +144,12 @@ export function getGitHubAdministrationToken(env = process.env, { repositorySlug
   }
 
   const fallbackToken = getGitHubToken(env, { repositorySlug });
-  if (!fallbackToken) {
-    return null;
-  }
-
-  return {
-    source: "generic-token",
-    token: fallbackToken
-  };
+  return fallbackToken
+    ? {
+        source: "generic-token",
+        token: fallbackToken
+      }
+    : null;
 }
 
 export function buildMainBranchProtectionPayload({ enforceAdmins = true } = {}) {

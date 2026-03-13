@@ -865,9 +865,9 @@ Resource not accessible by personal access token
 
 修复方式：
 
-- 给治理脚本单独准备 admin token
-- 优先使用 `GH_ADMIN_TOKEN` / `GITHUB_ADMIN_TOKEN`
-- 或使用仓库专属变量，例如 `GITHUB_ADMIN_TOKEN_BG3CALCULATOR`
+- 给治理脚本准备一个同时带 `Administration` 和 `Actions` 权限的高权限 token
+- 默认直接放到仓库专属变量，例如 `GITHUB_TOKEN_BG3CALCULATOR`
+- 旧的 `GH_ADMIN_TOKEN` / `GITHUB_ADMIN_TOKEN` 只保留兼容，不再是默认推荐
 - Fine-grained PAT 需要开启 Repository permissions -> `Administration: Read and write`
 
 验证方式：
