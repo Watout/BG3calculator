@@ -29,6 +29,33 @@ pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 tauri:dev"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:preflight -- --tag 0.1.2"
 ```
 
+## 0.1 协作资产与路由
+
+当前仓库的 agent 协作入口分成四层：
+
+- `AGENTS.md`：仓库级硬规则、短路由和文档同步约束。
+- `/.agents/skills/*/SKILL.md`：场景化 workflow、长 checklist、模板和可复用流程。
+- `docsforcodex/*`：人类可读的背景说明、入口地图和操作文档。
+- `openspec/changes/*`：需要长期保留的流程变更记录。
+
+当前已落地的仓库级 skill：
+
+- `/.agents/skills/optimize-agents-md/SKILL.md`
+- `/.agents/skills/optimize-agents-md/references/concise-agents-template.md`
+
+对应的协作索引文档：
+
+- `docsforcodex/agents-and-skills.md`
+
+默认工具优先级：
+
+- 本地代码 / `README.md` / `docsforcodex/*`
+- 匹配的 repo skill
+- 官方或可信 MCP
+- web
+
+如果任务来自真实踩坑，还要同步对应的 `docforcodex/hole/*` 文档。
+
 当前仓库已经补齐几条可复用的本地 CI/CD 入口：
 
 ```powershell

@@ -160,6 +160,7 @@ pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.2"
 ## 参考文档
 
 - [代码边界与接口说明](./docsforcodex/overall.md)
+- [AGENTS / Skills 路由说明](./docsforcodex/agents-and-skills.md)
 - [Action CI/CD 发版流程](./docsforcodex/action-cicd-release-flow.md)
 - [Codex 本地接入与 Release 流程](./docsforcodex/codex-local-setup-and-release.md)
 - [远程 macOS 构建背景](./docsforcodex/macos-remote-build-context.md)
