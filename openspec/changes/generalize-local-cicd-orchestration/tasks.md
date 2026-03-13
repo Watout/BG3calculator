@@ -1,0 +1,5 @@
+- [x] Add a generic local GitHub workflow dispatch script and automated tests.
+- [x] Add a repository release orchestration script that validates, commits, pushes, and tags locally.
+- [x] Update package scripts and CI/CD docs to prefer the new orchestration entrypoints.
+- [x] Generalize the local `cicd` skill into a reusable CI/CD discovery-and-trigger workflow.
+- [x] Record the new no-`gh` local dispatch path and orchestration rules in pitfall docs.

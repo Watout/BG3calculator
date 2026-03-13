@@ -15,9 +15,13 @@
     "vitest": "^4.0.18"
   },
   "scripts": {
+    "cicd:dispatch-workflow": "node scripts/github-workflow-dispatch.mjs",
     "lint": "pnpm exec -- eslint apps packages --max-warnings 0",
     "typecheck": "pnpm exec tsc -b",
     "test": "pnpm exec -- vitest run --config vitest.config.ts",
+    "release:prepare": "node scripts/release-prepare.mjs",
+    "release:prepare-local": "node scripts/release-prepare.mjs --mode manual",
+    "release:prepare-remote": "node scripts/release-prepare.mjs --mode dispatch --wait",
     "release:sync-version": "node scripts/release-sync-version.mjs",
     "release:preflight": "node scripts/release-preflight.mjs",
     "release:collect-assets": "node scripts/release-collect-assets.mjs",

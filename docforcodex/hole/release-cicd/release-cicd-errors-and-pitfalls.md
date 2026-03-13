@@ -487,6 +487,96 @@ Node.js 20 actions are deprecated. The following actions are running on Node.js 
 
 ---
 
+### 7. 本地触发 workflow 不能把 `gh` 当成唯一入口
+
+错误现象：
+
+- 想从本地自动触发 `prepare-release.yml` 或其他 `workflow_dispatch` workflow
+- 但当前 Windows 开发机并不保证预装 `gh`
+- 结果 skill 虽然知道“优先 dispatch workflow”，实际执行时却只能退回到手工多命令路径
+
+根因：
+
+- 之前仓库只有 `gh workflow run ...` 这种示例命令，没有仓库内的通用 dispatch 脚本
+- 这让“本地自动触发 Action”的能力依赖于开发机外部工具，而不是仓库自己的自动化入口
+
+解决路径：
+
+- 新增 `/scripts/github-workflow-dispatch.mjs`
+- 统一通过 GitHub REST API 触发 `workflow_dispatch`
+- 根工作区暴露通用入口：
+  - `pnpm cicd:dispatch-workflow`
+- 同时为本仓库 release 流程补一个正式本地入口：
+  - `pnpm release:prepare -- --tag <tag>`
+  - `pnpm release:prepare-local -- --tag <tag>`
+  - `pnpm release:prepare-remote -- --tag <tag>`
+
+验证方式：
+
+- `pnpm test` 覆盖：
+  - `scripts/github-workflow-dispatch.test.ts`
+  - `scripts/release-prepare.test.ts`
+- 文档已改为优先推荐仓库内脚本，而不是假设 `gh` 已安装
+
+后续防回归建议：
+
+- 以后新增 `workflow_dispatch` 型 CI/CD 能力时，优先先补仓库内脚本入口，再写命令示例
+- skill 层只负责发现与选择路径，真正的执行顺序优先固化到仓库脚本
+- 若仓库已经有 `cicd:*` / `release:*` orchestration 命令，后续 agent 应优先调用这些命令，而不是重新在对话里手拼多条 shell
+
+相关文件：
+
+- `/scripts/github-workflow-dispatch.mjs`
+- `/scripts/github-workflow-dispatch.test.ts`
+- `/scripts/release-prepare.mjs`
+- `/scripts/release-prepare.test.ts`
+- `/package.json`
+
+---
+
+### 8. dispatch 路径不应该被“仅本地存在的旧 tag”错误拦截
+
+错误现象：
+
+- 当前机器上已经有本地 tag `0.1.6`
+- 远端并没有 `0.1.6`
+- 如果 agent 仍把“本地 tag 已存在”当成统一阻塞条件，就会错误放弃 `prepare-release.yml` 的 dispatch 路径，退回到更长的手工流程
+
+根因：
+
+- `prepare-release.yml` 是在 GitHub runner 的干净 checkout 上执行的
+- 本地机器上的旧 tag 不会自动同步到 runner
+- 对 dispatch 路径来说，真正需要阻塞的是“远端 tag 已存在”，不是“当前开发机本地 tag 残留”
+- 只有本地手工打 tag 的路径，才必须同时检查本地和远端 tag 是否复用
+
+解决路径：
+
+- 在 `/scripts/release-prepare.mjs` 里区分两条路径：
+  - dispatch 路径：只拦截远端同名 tag
+  - manual 路径：同时拦截本地与远端同名 tag
+- 同步更新本地 `cicd` skill 和 `docsforcodex` 文档，避免后续 agent 继续把两条路径混为一谈
+
+验证方式：
+
+- `pnpm exec vitest run scripts/release-prepare.test.ts --config vitest.config.ts`
+- 测试包含：
+  - dispatch 路径允许忽略本地旧 tag
+  - manual 路径仍会拒绝本地旧 tag
+
+后续防回归建议：
+
+- 以后新增“本地 wrapper -> dispatch workflow”型流程时，先明确哪些约束属于本地 git 状态，哪些约束属于远端 workflow 事实
+- 不要把“手工 tag 路径”的阻塞条件照搬到 `workflow_dispatch` 路径
+
+相关文件：
+
+- `/scripts/release-prepare.mjs`
+- `/scripts/release-prepare.test.ts`
+- `/docsforcodex/action-cicd-release-flow.md`
+- `/docsforcodex/local-cicd-orchestration.md`
+
+---
+
 ## 当前实现上的高敏感区域
 
 ### 1. `desktop-build.yml` 的动态 matrix 是高敏感配置

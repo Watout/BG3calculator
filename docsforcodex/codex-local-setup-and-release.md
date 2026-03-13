@@ -14,6 +14,9 @@
 - 桌面应用：`apps/desktop-tauri`
 - 根级校验入口：`pnpm lint`、`pnpm typecheck`、`pnpm test`
 - 手动桌面构建：`.github/workflows/desktop-build.yml`
+- 本地 workflow dispatch 入口：`pnpm cicd:dispatch-workflow`
+- 统一 release 编排入口：`pnpm release:prepare`
+- 本地 release 编排入口：`pnpm release:prepare-local`
 
 ---
 
@@ -84,6 +87,15 @@ pwsh.exe -NoProfile -Command "pnpm typecheck"
 pwsh.exe -NoProfile -Command "pnpm test"
 ```
 
+如果任务是 CI/CD 或发版，当前仓库优先使用脚本化入口，而不是让 Codex 每次手工重新拼接命令：
+
+```powershell
+pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "pnpm release:prepare-local -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm release:prepare-remote -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm cicd:dispatch-workflow -- --workflow prepare-release.yml --ref main --input tag=0.1.8 --wait"
+```
+
 ---
 
 ## 3. 仓库内的 CI / CD 约定
@@ -118,6 +130,12 @@ pwsh.exe -NoProfile -Command "pnpm test"
 3. 推送分支并发起 PR。
 4. 等待 `ci` workflow 通过后再合并。
 
+如果本地需要直接触发某个 `workflow_dispatch` workflow，优先使用仓库提供的通用 dispatch 入口，而不是假设本机已有 `gh`：
+
+```powershell
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm cicd:dispatch-workflow -- --workflow desktop-build.yml --ref main --input target=windows-x64 --input request_id=manual --wait"
+```
+
 ### 3.2 发布流程
 
 当你准备发布时：
@@ -147,6 +165,14 @@ pwsh.exe -NoProfile -Command "git tag 0.1.2"
 pwsh.exe -NoProfile -Command "git push origin 0.1.2"
 ```
 
+现在也可以直接使用仓库固化好的本地脚本：
+
+```powershell
+pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "pnpm release:prepare-local -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8 --auto-commit"
+```
+
 这里的顺序不能省略：
 
 - `release:preflight` 只保证 tag 和四个版本文件一致，不等于整个工作区已经通过验收
@@ -168,6 +194,18 @@ pwsh.exe -NoProfile -Command "git push origin 0.1.2"
    - 创建并推送一个全新的 release tag
 
 随后 `release-desktop` 会因为这个新 tag 自动触发。
+
+如果你希望仍然从本地发起，但机器上没有 `gh`，可以直接用：
+
+```powershell
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm release:prepare-remote -- --tag 0.1.8"
+```
+
+补充说明：
+
+- `pnpm release:prepare` 会根据本地是否具备 token 和 `prepare-release.yml` 自动选择 dispatch 或本地手工路径
+- `pnpm release:prepare-local` 默认要求工作树干净；只有显式传 `--auto-commit` 时，才会先提交当前改动
+- dispatch 路径只拦截远端同名 tag 复用，不会因为当前机器上残留的本地 tag 而拒绝触发 workflow
 
 如果 preflight 因版本不一致而失败，`release-desktop` 会停在 `verify-workspace`，不会继续构建 Windows / macOS 包，也不会更新 GitHub Release 资产。
 
@@ -207,6 +245,9 @@ pwsh.exe -NoProfile -Command "git push origin 0.1.2"
 最值得先看的文件：
 
 - 根工作区脚本：`/package.json`
+- 通用本地 CI/CD 编排说明：`/docsforcodex/local-cicd-orchestration.md`
+- 通用 workflow dispatch：`/scripts/github-workflow-dispatch.mjs`
+- 本地 release 编排：`/scripts/release-prepare.mjs`
 - 手动桌面构建：`/.github/workflows/desktop-build.yml`
 - 常规 CI：`/.github/workflows/ci.yml`
 - 手动准备 release：`/.github/workflows/prepare-release.yml`

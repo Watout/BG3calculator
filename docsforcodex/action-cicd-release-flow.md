@@ -48,6 +48,12 @@
    - 创建并推送新的 tag
 4. tag push 之后，`release-desktop` 自动开始发布构建
 
+如果你是在本地触发这条路径，而机器上没有 `gh`，现在也可以直接用仓库内脚本经由 GitHub REST API dispatch：
+
+```powershell
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm release:prepare-remote -- --tag 0.1.8"
+```
+
 ### 方式 B：手工命令
 
 适用场景：
@@ -67,6 +73,40 @@ pwsh.exe -NoProfile -Command "git push origin main"
 pwsh.exe -NoProfile -Command "git tag 0.1.6"
 pwsh.exe -NoProfile -Command "git push origin 0.1.6"
 ```
+
+### 方式 C：本地一键编排
+
+适用场景：
+
+- 希望在本地自动完成“同步版本 -> 校验 -> commit -> push main -> push tag”
+- 希望把这条顺序固化为可复用入口，而不是每次手敲多条命令
+
+标准命令：
+
+```powershell
+pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "pnpm release:prepare-local -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8 --auto-commit"
+```
+
+它会自动执行：
+
+- 工作树/分支检查
+- tag 冲突检查
+- `pnpm release:sync-version -- --tag <tag>`
+- `pnpm release:preflight -- --tag <tag>`
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm test`
+- 必要时提交版本文件
+- `git push origin main`
+- `git tag <tag>`
+- `git push origin <tag>`
+
+补充说明：
+
+- `pnpm release:prepare` 会优先尝试 dispatch `prepare-release.yml`；只有本地缺少 token 或显式指定 `--mode manual` 时，才回退到本地手工发布路径
+- dispatch 路径只把“远端已存在同名 tag”视为阻塞条件；仅存在本地同名 tag 时，本地 wrapper 仍允许直接触发远端 workflow
 
 ## 必须遵守的约束
 
@@ -112,6 +152,8 @@ pwsh.exe -NoProfile -Command "git push origin 0.1.6"
 
 - `/.github/workflows/prepare-release.yml`
 - `/.github/workflows/release-desktop.yml`
+- `/scripts/github-workflow-dispatch.mjs`
+- `/scripts/release-prepare.mjs`
 - `/scripts/release-sync-version.mjs`
 - `/scripts/release-preflight.mjs`
 - `/docforcodex/hole/release-cicd/release-cicd-errors-and-pitfalls.md`

@@ -29,6 +29,15 @@ pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 tauri:dev"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:preflight -- --tag 0.1.2"
 ```
 
+当前仓库已经补齐两条可复用的本地 CI/CD 入口：
+
+```powershell
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:prepare -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:prepare-local -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; & corepack.cmd pnpm@10.32.1 release:prepare-remote -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; & corepack.cmd pnpm@10.32.1 cicd:dispatch-workflow -- --workflow desktop-build.yml --ref main --input target=macos-universal --input request_id=manual --wait"
+```
+
 桌面端打包命令：
 
 ```powershell
@@ -72,6 +81,14 @@ GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm 
 - `ci.yml`：PR / `main` 的 lint、typecheck、test
 - `prepare-release.yml`：手动同步版本、校验、推送 release commit，并创建全新 tag
 - `release-desktop.yml`：监听新 tag，构建 Windows / macOS 并发布 GitHub Release
+
+当前本地 release / workflow 编排入口：
+
+- `pnpm release:prepare`：根据环境自动选择 dispatch 或本地手工发布路径
+- `pnpm release:prepare-local`：本地完成版本同步、校验、commit、push main、push tag；显式传 `--auto-commit` 时可先提交当前改动
+- `pnpm release:prepare-remote`：本地直接 dispatch `prepare-release.yml`，参数入口是 `--tag`
+- `pnpm cicd:dispatch-workflow`：通用 GitHub Actions `workflow_dispatch` 入口，不依赖 `gh`
+- 通用流程说明见：`docsforcodex/local-cicd-orchestration.md`
 
 正式发布约定：
 
