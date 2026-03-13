@@ -312,6 +312,50 @@ on:
 
 ---
 
+### 3.1 手工发版路径不能只做 preflight 和推 tag
+
+错误现象：
+
+- 本地手工发版时只执行：
+  - `pnpm release:sync-version -- --tag <tag>`
+  - `pnpm release:preflight -- --tag <tag>`
+  - `git tag <tag>`
+  - `git push origin <tag>`
+- 省略了 `pnpm lint`、`pnpm typecheck`、`pnpm test`
+- 也没有先把包含版本同步的提交推到 `main`
+
+根因：
+
+- `release:preflight` 只负责 tag 与四个版本文件一致性校验，不负责整个工作区的发布验收
+- `release-desktop` 是新 tag push 触发；如果 tag 指向的提交没有先进入 `main`，手工流程就会偏离仓库推荐发布路径
+- 旧文档一度把手工路径写得过短，容易让人误以为“preflight 通过就能直接推 tag”
+
+解决路径：
+
+- 手工发布时统一按以下顺序执行：
+  - `pnpm release:sync-version -- --tag <tag>`
+  - `pnpm release:preflight -- --tag <tag>`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+  - `git push origin main`
+  - `git tag <tag>`
+  - `git push origin <tag>`
+- 更推荐直接用 `prepare-release.yml`，让 workflow 自动完成这套流程
+
+验证方式：
+
+- [`docsforcodex/codex-local-setup-and-release.md`](C:/1W/codingProject/BG3calculator/docsforcodex/codex-local-setup-and-release.md) 的手工发版段落已补齐完整步骤与顺序说明
+- 手工路径现在和 [`docsforcodex/action-cicd-release-flow.md`](C:/1W/codingProject/BG3calculator/docsforcodex/action-cicd-release-flow.md) 及 [`.github/workflows/prepare-release.yml`](C:/1W/codingProject/BG3calculator/.github/workflows/prepare-release.yml) 保持一致
+
+相关文件：
+
+- `/docsforcodex/codex-local-setup-and-release.md`
+- `/docsforcodex/action-cicd-release-flow.md`
+- `/.github/workflows/prepare-release.yml`
+
+---
+
 ### 4. 资产收集不是“捞到什么传什么”
 
 `release-collect-assets.mjs` 当前不是简单匹配全部文件，而是有最低资产契约：

@@ -139,9 +139,20 @@ pwsh.exe -NoProfile -Command "pnpm release:sync-version -- --tag 0.1.2"
 
 ```powershell
 pwsh.exe -NoProfile -Command "pnpm release:preflight -- --tag 0.1.2"
+pwsh.exe -NoProfile -Command "pnpm lint"
+pwsh.exe -NoProfile -Command "pnpm typecheck"
+pwsh.exe -NoProfile -Command "pnpm test"
+pwsh.exe -NoProfile -Command "git push origin main"
 pwsh.exe -NoProfile -Command "git tag 0.1.2"
 pwsh.exe -NoProfile -Command "git push origin 0.1.2"
 ```
+
+这里的顺序不能省略：
+
+- `release:preflight` 只保证 tag 和四个版本文件一致，不等于整个工作区已经通过验收
+- `pnpm lint`、`pnpm typecheck`、`pnpm test` 是和 `prepare-release.yml` 一致的最小发布护栏
+- 如果 `release:sync-version` 改动了版本文件，必须先把对应提交推到 `main`，再推送新的 tag
+- `release-desktop` 是“新 tag push 触发”，不是“补推 main 自动触发”；所以不要先打 tag、后补推 `main`
 
 如果你不想手工重复“同步版本 -> 校验 -> 提交 -> 打 tag”这套流程，优先使用 GitHub Actions 里的 `prepare-release`：
 
