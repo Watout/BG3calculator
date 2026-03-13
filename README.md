@@ -105,6 +105,7 @@ pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-a
 - 这里需要的是带仓库 `Administration: Read and write` 权限的 token，不是只够 dispatch workflow 的普通 token。
 - 如果仓库属于 GitHub 组织，release tag ruleset 会保留 `github-actions` App 的 bypass，这样 `create-release-tag` 才能继续从远端 `main` 推出新 tag。
 - 当前仓库属于个人账号，GitHub 不允许给 `github-actions` integration 配 tag ruleset bypass，所以脚本会退到兼容模式：阻止已发布 tag 被改写或删除，但不阻止新 tag 创建。
+- 当前仓库属于个人账号，`main` 的分支保护也会保留管理员 bypass，避免单管理员仓库因为“必须 PR review”而把自己锁死。
 
 ## 正式发布流程
 

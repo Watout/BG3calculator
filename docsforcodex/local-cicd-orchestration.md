@@ -160,3 +160,4 @@ pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-a
 - 它会更新 `main` 的 branch protection，并创建或更新 release tag ruleset。
 - 如果仓库属于 GitHub 组织，release tag ruleset 默认保留 `github-actions` App bypass，避免 `create-release-tag.yml` 被自己触发的 tag protection 拦截。
 - 如果仓库属于个人账号，GitHub 当前不允许给 `github-actions` integration 配 tag ruleset bypass，脚本会自动切到兼容模式：只保护 tag 更新/删除，保留新 tag 创建能力。
+- 如果仓库属于个人账号且只有单管理员，脚本会让 `main` 保留管理员 bypass，避免后续被 required review 自己锁死。

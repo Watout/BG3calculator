@@ -12,6 +12,7 @@ use pnpm 而不是 npm 来进行包管理，如果已经有相关的了，迁移
 - `pnpm cicd:apply-github-guardrails` 需要带仓库 `Administration` 权限的 GitHub token，优先使用 `GH_ADMIN_TOKEN` / `GITHUB_ADMIN_TOKEN` 或仓库专属变量（例如 `GITHUB_ADMIN_TOKEN_BG3CALCULATOR`）。
 - 如果仓库属于 GitHub 组织，release tag 保护规则必须保留 GitHub Actions integration bypass（当前 App id `15368`，slug `github-actions`），否则 `create-release-tag.yml` 会被 tag protection 反向拦截。
 - 如果仓库属于个人账号，GitHub 当前不允许给 `github-actions` integration 配 tag ruleset bypass；这时默认退到“禁止改写/删除已发布 tag，但不阻止新 tag 创建”的兼容模式，并在文档里明确记录这个平台限制。
+- 如果仓库属于个人账号且只有单一管理员，`main` 保护默认保留管理员 bypass，避免“要求 PR review + 强制管理员也受保护”导致后续自我锁死。
 - 禁止恢复或新增本地正式发版 fallback，例如：
   - `release:prepare-local`
   - 本地 `commit/push main/tag`

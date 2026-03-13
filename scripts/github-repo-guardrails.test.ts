@@ -104,6 +104,14 @@ describe("github repository guardrails script", (): void => {
     });
   });
 
+  it("can disable admin enforcement for personal repositories", (): void => {
+    expect(
+      buildMainBranchProtectionPayload({
+        enforceAdmins: false
+      }).enforce_admins
+    ).toBe(false);
+  });
+
   it("builds the strict release tag ruleset payload with GitHub Actions bypass", (): void => {
     expect(buildStrictReleaseTagRulesetPayload()).toEqual({
       bypass_actors: [
@@ -190,9 +198,14 @@ describe("github repository guardrails script", (): void => {
       env: {
         GITHUB_ADMIN_TOKEN_BG3CALCULATOR: "admin-token"
       },
-      fetchImpl: async () => {
-        throw new Error("fetch should not be called in dry-run mode");
-      }
+      fetchImpl: async () => ({
+        json: async () => ({
+          owner: {
+            type: "User"
+          }
+        }),
+        ok: true
+      })
     });
 
     expect(result.exitCode).toBe(0);

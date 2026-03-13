@@ -957,6 +957,39 @@ CACError: Unknown option `--runInBand`
 
 ---
 
+### 10. 单管理员个人仓库不能同时要求 PR review 又强制管理员受 branch protection 约束
+
+这次真实打到的报错是：
+
+```text
+remote: error: GH006: Protected branch update failed for refs/heads/main.
+remote:
+remote: - Changes must be made through a pull request.
+remote:
+remote: - 2 of 2 required status checks are expected.
+```
+
+根因：
+
+- 当前仓库是个人账号仓库，且基本可以视作单管理员仓库
+- `main` 保护里同时启用了：
+  - required pull request review
+  - `enforce_admins = true`
+- 这样会导致管理员本人既不能直接 push，也无法靠“自己 review 自己的 PR”完成闭环，形成治理死锁
+
+修复方式：
+
+- `pnpm cicd:apply-github-guardrails` 现在会自动识别个人账号仓库
+- 在这种仓库里保留管理员 bypass
+- 继续保留 required checks、linear history、conversation resolution 等约束
+
+适用边界：
+
+- 团队仓库、组织仓库仍可继续使用更严格的 `enforce_admins = true`
+- 个人单管理员仓库优先保证流程可持续，不要把自己锁死
+
+---
+
 ## 建议保留的测试护栏
 
 下面这些测试已经证明有价值，不要删：
@@ -992,7 +1025,7 @@ CACError: Unknown option `--runInBand`
 
 ## 当前结论
 
-这次已确认并修复或加固的真实坑点有九个：
+这次已确认并修复或加固的真实坑点有十个：
 
 1. GitHub Actions job 级 `if` 不能直接引用 `matrix.*`
 2. 通过 `pnpm ... -- ...` 调脚本时，CLI 解析必须显式忽略裸 `--`
@@ -1003,5 +1036,6 @@ CACError: Unknown option `--runInBand`
 7. release tag ruleset 必须显式放行 GitHub Actions integration，否则自动打 tag 会被自己配置的保护规则拦下
 8. 个人账号仓库当前不能直接把 `github-actions` integration 作为 tag ruleset bypass actor，需要退到兼容模式或更换仓库/凭据模型
 9. `vitest` 不支持 `--runInBand`，不能直接套用 Jest 的命令参数
+10. 单管理员个人仓库如果同时要求 PR review 且强制管理员受保护，会把自己锁死
 
 这几个问题都已经在代码、脚本和测试中补了护栏，后续如果再次出现同类问题，优先先看本文件。

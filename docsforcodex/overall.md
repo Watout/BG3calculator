@@ -111,6 +111,7 @@ GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm 
 - 正式发布不再推荐本地 `git tag` + `git push origin <tag>` 作为默认路径，也不再提供本地 manual release fallback
 - 如果仓库属于 GitHub 组织，release tag protection 必须保留 `github-actions` App（id `15368`）的 bypass，否则 `create-release-tag.yml` 自己会被 tag ruleset 拦住
 - 当前仓库是个人账号仓库；GitHub 当前不允许给 `github-actions` integration 配 tag ruleset bypass，所以 `pnpm cicd:apply-github-guardrails` 会自动退到兼容模式：保护已发布 tag 不被更新或删除，但保留新 tag 创建能力给 release workflow 使用
+- 当前仓库也是个人账号仓库；为避免单管理员仓库被“必须 PR review + enforce admins”锁死，`pnpm cicd:apply-github-guardrails` 会让 `main` 保留管理员 bypass，其余检查仍然强制在非管理员协作者路径上生效
 - `publish-release` job 当前使用 `actions/download-artifact@v5` 回收同一次 workflow run 的 artifact，再调用 `node scripts/release-publish.mjs --input release-assets ...` 通过 GitHub REST API 创建或更新 Release 并覆盖上传资产
 - 桌面 artifact 上传步骤已统一切到 `actions/upload-artifact@v6`，避免继续依赖 Node 20 JavaScript action runtime
 - 本地 Windows 开发机不保证预装 `gh`；如果要复现 `publish-release` job，优先跑仓库内 `release-publish` 测试与脚本，再按需补装 GitHub CLI

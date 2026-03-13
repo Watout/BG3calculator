@@ -34,6 +34,7 @@ The repository MUST provide an automated way to apply the GitHub-side branch and
 - **WHEN** the operator runs `pnpm cicd:apply-github-guardrails`
 - **THEN** `main` branch protection is updated to require the repository CI checks
 - **AND** the release tag ruleset is created or updated
+- **AND** user-owned repositories keep administrator bypass on `main` when required PR review would otherwise deadlock a single-admin workflow
 - **AND** organization-owned repositories preserve a bypass for the `github-actions` integration so release automation can still push new tags
 - **AND** user-owned repositories fall back to protecting published tags from update or deletion when GitHub does not allow the `github-actions` integration as a ruleset bypass actor
 

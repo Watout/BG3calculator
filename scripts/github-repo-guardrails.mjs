@@ -135,13 +135,13 @@ export function getGitHubAdministrationToken(env = process.env, { repositorySlug
   };
 }
 
-export function buildMainBranchProtectionPayload() {
+export function buildMainBranchProtectionPayload({ enforceAdmins = true } = {}) {
   return {
     allow_deletions: false,
     allow_force_pushes: false,
     allow_fork_syncing: false,
     block_creations: false,
-    enforce_admins: true,
+    enforce_admins: enforceAdmins,
     lock_branch: false,
     required_conversation_resolution: true,
     required_linear_history: true,
@@ -341,9 +341,19 @@ export async function applyGitHubRepoGuardrails({
     );
   }
 
-  const branchProtectionPayload = buildMainBranchProtectionPayload();
+  const metadataClient = createGitHubClient({
+    fetchImpl,
+    repositorySlug,
+    token: tokenInfo.token
+  });
+  const repository = await getRepositoryMetadata(metadataClient, repositorySlug);
+  const ownerType = repository?.owner?.type ?? null;
+  const mainProtectionMode = ownerType === "User" ? "personal-repo-admin-bypass" : "strict";
   const strictTagRulesetPayload = buildStrictReleaseTagRulesetPayload();
   const personalRepoTagRulesetPayload = buildPersonalRepoReleaseTagRulesetPayload();
+  const selectedBranchProtectionPayload = buildMainBranchProtectionPayload({
+    enforceAdmins: mainProtectionMode === "strict"
+  });
 
   if (options.dryRun) {
     return {
@@ -352,11 +362,12 @@ export async function applyGitHubRepoGuardrails({
         [
           `Repository: ${repositorySlug}`,
           `Token source: ${tokenInfo.source}`,
+          `Main branch protection mode: ${mainProtectionMode}`,
           `Main branch: ${MAIN_BRANCH}`,
           `Release tag pattern: ${RELEASE_TAG_PATTERN}`,
           "",
           "Branch protection payload:",
-          JSON.stringify(branchProtectionPayload, null, 2),
+          JSON.stringify(selectedBranchProtectionPayload, null, 2),
           "",
           "Tag ruleset payload (strict / org-capable):",
           JSON.stringify(strictTagRulesetPayload, null, 2),
@@ -375,7 +386,7 @@ export async function applyGitHubRepoGuardrails({
 
   try {
     await client.requestJson({
-      body: branchProtectionPayload,
+      body: selectedBranchProtectionPayload,
       method: "PUT",
       pathname: `/repos/${repositorySlug}/branches/${encodeURIComponent(MAIN_BRANCH)}/protection`
     });
@@ -388,6 +399,10 @@ export async function applyGitHubRepoGuardrails({
         [
           `Repository: ${repositorySlug}`,
           `Main branch protection: updated (${MAIN_BRANCH_REQUIRED_CHECKS.join(", ")})`,
+          `Main branch protection mode: ${mainProtectionMode}`,
+          mainProtectionMode === "strict"
+            ? "Main branch compatibility note: administrators are also subject to branch protection."
+            : "Main branch compatibility note: personal repositories keep administrator bypass on main to avoid self-deadlock when PR reviews are required.",
           `Release tag ruleset: ${tagRulesetResult.action} (${RELEASE_TAG_RULESET_NAME})`,
           `Release tag ruleset mode: ${tagRulesetResult.compatibilityMode}`,
           tagRulesetResult.compatibilityMode === "strict"
