@@ -83,7 +83,7 @@ jobs:
         shell: pwsh
 
       - name: Lint GitHub Actions workflows
-        uses: rhysd/actionlint@v1
+        uses: rhysd/actionlint@v1.7.3
 
       - name: Run automation script tests
         run: >

@@ -715,6 +715,42 @@ Node.js 20 actions are deprecated. The following actions are running on Node.js 
 
 ---
 
+### 12. GitHub Action 第三方依赖不能假设存在宽泛主版本 tag
+
+错误现象：
+
+- 迁移后的 `ci.yml` 在远端首跑时，`automation-guardrails` job 直接在 `Set up job` 阶段失败
+- 运行页显示 `Unable to resolve action \`rhysd/actionlint@v1\`, unable to find version \`v1\``
+
+根因：
+
+- workflow 使用了 `rhysd/actionlint@v1`
+- 但该 action 仓库并没有提供一个可解析的 `v1` 版本标签
+- 结果 job 在真正执行步骤之前就无法拉起
+
+解决路径：
+
+- 改为使用仓库中实际存在的已发布版本标签 `rhysd/actionlint@v1.7.3`
+- 如果后续继续升级，先确认 upstream release/tag 真实存在，再更新 workflow
+
+验证方式：
+
+- push 修复后，`automation-guardrails` 不再停在 `Set up job`
+- `ci` workflow 能继续执行 actionlint 和脚本测试
+
+后续防回归建议：
+
+- 新增第三方 GitHub Action 时，不要拍脑袋写主版本别名
+- 先核对 upstream 仓库的真实 release/tag，再决定使用固定版本 tag 还是 commit SHA
+- 对关键供应链步骤，优先使用明确存在的版本引用，避免把解析失败带到远端 CI 首跑
+
+相关文件：
+
+- `/.github/workflows/ci.yml`
+- `/docforcodex/hole/release-cicd/release-cicd-errors-and-pitfalls.md`
+
+---
+
 ## 当前实现上的高敏感区域
 
 ### 1. `desktop-build.yml` 的动态 matrix 是高敏感配置
