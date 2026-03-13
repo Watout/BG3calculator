@@ -72,12 +72,6 @@ pwsh.exe -NoProfile -Command "$env:OPENAI_API_KEY = '<your-api-key>'"
 pwsh.exe -NoProfile -Command "codex"
 ```
 
-进入具体任务前，默认先读这三个入口：
-
-- `AGENTS.md`
-- `docsforcodex/overall.md`
-- `docsforcodex/agents-and-skills.md`
-
 首轮提示词建议直接围绕仓库事实展开，例如：
 
 - `Explain this pnpm monorepo and the dependency direction between apps and packages.`
@@ -114,31 +108,6 @@ pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
 - 全局变量：`GH_TOKEN`、`GITHUB_TOKEN`
 - 仓库级变量：`GH_TOKEN_BG3CALCULATOR`、`GITHUB_TOKEN_BG3CALCULATOR`
 - owner + repo 级变量：`GH_TOKEN_WATOUT_BG3CALCULATOR`、`GITHUB_TOKEN_WATOUT_BG3CALCULATOR`
-
-### 2.3 仓库级 Skills 约定
-
-当前仓库已经开始把“总规则”和“长流程”拆开：
-
-- 根级 `AGENTS.md` 保留仓库级硬规则、工具优先级和短路由。
-- 仓库级可复用 workflow 放到 `/.agents/skills/<skill-name>/SKILL.md`。
-- 需要面向人解释的背景和索引，继续写进 `docsforcodex/*`。
-
-当前已落地的仓库级 skill：
-
-- `/.agents/skills/optimize-agents-md/SKILL.md`
-
-它的职责是：
-
-- 新建或瘦身根级 `AGENTS.md`
-- 把长流程从 `AGENTS.md` 下沉到 repo skill
-- 给仓库补齐 `Tool routing` / `Tool priority`
-- 同步 `docsforcodex` 与 `openspec` 记录
-
-对应模板：
-
-- `/.agents/skills/optimize-agents-md/references/concise-agents-template.md`
-
-如果后续继续新增 repo skill，也优先沿用 `/.agents/skills/<name>/SKILL.md` 这套目录结构，而不是把更多 runbook 回填到根级 `AGENTS.md`。
 
 ## 3. 仓库内的 CI / CD 约定
 

@@ -78,7 +78,6 @@ error: unrecognized escape sequence
   - 但 PowerShell 进程退出阶段，WinGet 的 `CommandNotFoundFeedbackPredictor` 仍可能异步抛出 `PipelineStoppedException`
   - 最终表现成“有正常输出，但进程退出码是 `-532462766`”
 - 这不是仓库脚本逻辑报错，也不代表读取文件或 `git status` 真正失败，而是当前终端宿主 + WinGet 反馈逻辑的噪音问题。
-- 2026-03-14 在新增仓库级 `optimize-agents-md` skill 的过程中再次复现：`Get-Content`、`Select-String`、带简单格式化输出的读取命令都可能先成功打印正文，再在收尾阶段额外附带同一段 `PipelineStoppedException`。
 
 ## 解决路径
 

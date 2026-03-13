@@ -2,13 +2,6 @@
 use pnpm 而不是 npm 来进行包管理，如果已经有相关的了，迁移到pnpm里
 执行之前先去 ./docsforcodex 文件夹里面查看文档，overall.md 文件是项目的整体布局，你在修改代码的时候需要更新并审查相关 文档文件是否符合代码事实，不符合则及时更新，这是一个抽象，你以后可以通过overall.md 文件来快速的把握项目
 
-## AGENTS / Skills 协作约束
-
-- 根级 `AGENTS.md` 只保留仓库级硬规则、工具优先级和短路由；长流程、模板、checklist 下沉到 `/.agents/skills/*/SKILL.md` 或 `docsforcodex/*`。
-- 需要新建、瘦身或重构 `AGENTS.md` 时，优先使用仓库级 `optimize-agents-md` skill：`/.agents/skills/optimize-agents-md/SKILL.md`。
-- 工具优先级：本地代码 / `README.md` / `docsforcodex/*` > 匹配的 repo skill > 官方或可信 MCP > web 搜索；任何外部写操作先确认。
-- 如果新增或调整 repo 级 `AGENTS.md` / skill 路由，至少同步 `README.md`、`docsforcodex/overall.md`、`docsforcodex/codex-local-setup-and-release.md`、`docsforcodex/agents-and-skills.md` 与相关 `openspec/changes/*`。
-
 ## CI/CD 与发布治理约束
 
 - 当前仓库的正式发布事实源是远端受保护的 `main`，不是开发者本地分支状态。
