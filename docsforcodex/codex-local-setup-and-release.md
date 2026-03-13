@@ -201,6 +201,7 @@ pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
 - 通用本地 CI/CD 编排说明：`/docsforcodex/local-cicd-orchestration.md`
 - 通用 workflow dispatch：`/scripts/github-workflow-dispatch.mjs`
 - 仓库治理下发：`/scripts/github-repo-guardrails.mjs`
+- 个人账号仓库下，`github-repo-guardrails.mjs` 会自动切到 tag ruleset 兼容模式：保护已发布 tag 不被更新或删除，但不阻止新 tag 创建
 - 统一 release wrapper：`/scripts/release-prepare.mjs`
 - 手动桌面构建：`/.github/workflows/desktop-build.yml`
 - 复用构建矩阵：`/.github/workflows/desktop-build-matrix.yml`

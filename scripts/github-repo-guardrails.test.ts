@@ -8,7 +8,8 @@ import {
   applyGitHubRepoGuardrails,
   buildAdministrationTokenEnvNames,
   buildMainBranchProtectionPayload,
-  buildReleaseTagRulesetPayload,
+  buildPersonalRepoReleaseTagRulesetPayload,
+  buildStrictReleaseTagRulesetPayload,
   formatAdministrationTokenRequirement,
   getGitHubAdministrationToken,
   normalizeGuardrailPermissionError,
@@ -103,8 +104,8 @@ describe("github repository guardrails script", (): void => {
     });
   });
 
-  it("builds the release tag ruleset payload with GitHub Actions bypass", (): void => {
-    expect(buildReleaseTagRulesetPayload()).toEqual({
+  it("builds the strict release tag ruleset payload with GitHub Actions bypass", (): void => {
+    expect(buildStrictReleaseTagRulesetPayload()).toEqual({
       bypass_actors: [
         {
           actor_id: GITHUB_ACTIONS_APP_ID,
@@ -121,6 +122,32 @@ describe("github repository guardrails script", (): void => {
       enforcement: "active",
       name: RELEASE_TAG_RULESET_NAME,
       rules: [{ type: "creation" }, { type: "update" }, { type: "deletion" }],
+      target: "tag"
+    });
+  });
+
+  it("builds the personal repository fallback tag ruleset payload", (): void => {
+    expect(buildPersonalRepoReleaseTagRulesetPayload()).toEqual({
+      bypass_actors: [],
+      conditions: {
+        ref_name: {
+          exclude: [],
+          include: [RELEASE_TAG_PATTERN]
+        }
+      },
+      enforcement: "active",
+      name: RELEASE_TAG_RULESET_NAME,
+      rules: [
+        {
+          type: "update",
+          parameters: {
+            update_allows_fetch_and_merge: false
+          }
+        },
+        {
+          type: "deletion"
+        }
+      ],
       target: "tag"
     });
   });
@@ -172,5 +199,6 @@ describe("github repository guardrails script", (): void => {
     expect(result.stdout).toContain("Repository: Watout/BG3calculator");
     expect(result.stdout).toContain("Branch protection payload:");
     expect(result.stdout).toContain(`"name": "${RELEASE_TAG_RULESET_NAME}"`);
+    expect(result.stdout).toContain("Tag ruleset payload (personal-repo fallback):");
   });
 });

@@ -124,7 +124,8 @@ pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-a
 - 要求 PR、review、required checks、latest branch
 - 把 `lint-typecheck-test` 和 `automation-guardrails` 设为 required checks
 - 为正式 release tag 启用 tag protection 或 ruleset，禁止人工直接创建、改写或删除已发布 tag
-- release tag ruleset 必须给 `github-actions` App（id `15368`）保留 bypass，否则 `create-release-tag.yml` 无法推 tag
+- 如果仓库属于 GitHub 组织，release tag ruleset 必须给 `github-actions` App（id `15368`）保留 bypass，否则 `create-release-tag.yml` 无法推 tag
+- 当前仓库属于个人账号；GitHub 当前不允许给 `github-actions` integration 配 tag ruleset bypass，所以脚本会自动退到兼容模式：阻止已发布 tag 被更新或删除，但不阻止新 tag 创建
 - 如后续接入签名或审批，再把正式发布 job 绑定到单独 environment
 
 注意：

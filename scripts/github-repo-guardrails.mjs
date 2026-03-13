@@ -159,7 +159,7 @@ export function buildMainBranchProtectionPayload() {
   };
 }
 
-export function buildReleaseTagRulesetPayload() {
+export function buildStrictReleaseTagRulesetPayload() {
   return {
     bypass_actors: [
       {
@@ -182,6 +182,32 @@ export function buildReleaseTagRulesetPayload() {
       },
       {
         type: "update"
+      },
+      {
+        type: "deletion"
+      }
+    ],
+    target: "tag"
+  };
+}
+
+export function buildPersonalRepoReleaseTagRulesetPayload() {
+  return {
+    bypass_actors: [],
+    conditions: {
+      ref_name: {
+        exclude: [],
+        include: [RELEASE_TAG_PATTERN]
+      }
+    },
+    enforcement: "active",
+    name: RELEASE_TAG_RULESET_NAME,
+    rules: [
+      {
+        type: "update",
+        parameters: {
+          update_allows_fetch_and_merge: false
+        }
       },
       {
         type: "deletion"
@@ -229,8 +255,20 @@ export async function listRepositoryRulesets(client, repositorySlug) {
   return Array.isArray(response) ? response : [];
 }
 
+export async function getRepositoryMetadata(client, repositorySlug) {
+  return client.requestJson({
+    pathname: `/repos/${repositorySlug}`
+  });
+}
+
 export async function ensureReleaseTagRuleset(client, repositorySlug) {
-  const payload = buildReleaseTagRulesetPayload();
+  const repository = await getRepositoryMetadata(client, repositorySlug);
+  const ownerType = repository?.owner?.type ?? null;
+  const compatibilityMode = ownerType === "User" ? "personal-repo-fallback" : "strict";
+  const payload =
+    compatibilityMode === "strict"
+      ? buildStrictReleaseTagRulesetPayload()
+      : buildPersonalRepoReleaseTagRulesetPayload();
   const rulesets = await listRepositoryRulesets(client, repositorySlug);
   const existing = rulesets.find(
     (ruleset) =>
@@ -246,6 +284,7 @@ export async function ensureReleaseTagRuleset(client, repositorySlug) {
 
     return {
       action: "updated",
+      compatibilityMode,
       id: existing.id,
       response: updated
     };
@@ -259,6 +298,7 @@ export async function ensureReleaseTagRuleset(client, repositorySlug) {
 
   return {
     action: "created",
+    compatibilityMode,
     id: created.id ?? null,
     response: created
   };
@@ -302,7 +342,8 @@ export async function applyGitHubRepoGuardrails({
   }
 
   const branchProtectionPayload = buildMainBranchProtectionPayload();
-  const tagRulesetPayload = buildReleaseTagRulesetPayload();
+  const strictTagRulesetPayload = buildStrictReleaseTagRulesetPayload();
+  const personalRepoTagRulesetPayload = buildPersonalRepoReleaseTagRulesetPayload();
 
   if (options.dryRun) {
     return {
@@ -317,8 +358,11 @@ export async function applyGitHubRepoGuardrails({
           "Branch protection payload:",
           JSON.stringify(branchProtectionPayload, null, 2),
           "",
-          "Tag ruleset payload:",
-          JSON.stringify(tagRulesetPayload, null, 2)
+          "Tag ruleset payload (strict / org-capable):",
+          JSON.stringify(strictTagRulesetPayload, null, 2),
+          "",
+          "Tag ruleset payload (personal-repo fallback):",
+          JSON.stringify(personalRepoTagRulesetPayload, null, 2)
         ].join("\n") + "\n"
     };
   }
@@ -345,7 +389,10 @@ export async function applyGitHubRepoGuardrails({
           `Repository: ${repositorySlug}`,
           `Main branch protection: updated (${MAIN_BRANCH_REQUIRED_CHECKS.join(", ")})`,
           `Release tag ruleset: ${tagRulesetResult.action} (${RELEASE_TAG_RULESET_NAME})`,
-          `Release tag bypass actor: github-actions app ${GITHUB_ACTIONS_APP_ID}`,
+          `Release tag ruleset mode: ${tagRulesetResult.compatibilityMode}`,
+          tagRulesetResult.compatibilityMode === "strict"
+            ? `Release tag bypass actor: github-actions app ${GITHUB_ACTIONS_APP_ID}`
+            : "Release tag compatibility note: personal repositories cannot grant github-actions integration bypass, so tag updates/deletions are blocked while new tag creation stays available for release automation.",
           `Protected tag pattern: ${RELEASE_TAG_PATTERN}`
         ].join("\n") + "\n"
     };

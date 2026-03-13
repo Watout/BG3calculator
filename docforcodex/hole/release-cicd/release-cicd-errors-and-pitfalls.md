@@ -908,6 +908,55 @@ Resource not accessible by personal access token
 
 ---
 
+### 8. 个人账号仓库不能直接把 `github-actions` integration 作为 tag ruleset bypass
+
+这次真实打到 GitHub API 的报错是：
+
+```text
+Validation Failed
+Actor GitHub Actions integration must be part of the ruleset source or owner organization
+```
+
+根因：
+
+- 当前仓库归属于个人账号，不是 GitHub 组织
+- GitHub 当前不允许在这种仓库里，把 `github-actions` integration 直接配置成 tag ruleset bypass actor
+- 所以“禁止新 tag 创建，但允许 GitHub Actions 创建 tag”这套最严格模型，不能直接套在当前仓库上
+
+当前仓库的兼容处理：
+
+- `main` 仍然严格受保护
+- release tag ruleset 退到“禁止更新/删除已发布 tag”
+- 新 tag 创建仍保留给 `create-release-tag.yml` 使用
+- 这个兼容逻辑已经写进 `pnpm cicd:apply-github-guardrails`
+
+后续如果要升级到最严格模型，有两条路径：
+
+- 把仓库迁到 GitHub 组织，再给 `github-actions` integration 配 bypass
+- 或者改成由专用 PAT / 自建 GitHub App 负责创建 tag，再把对应 actor 作为 bypass actor
+
+---
+
+### 9. Vitest 不支持 `--runInBand`
+
+这次本地自检时的真实报错是：
+
+```text
+CACError: Unknown option `--runInBand`
+```
+
+根因：
+
+- 当前仓库使用的是 `vitest`
+- `--runInBand` 是 Jest 风格参数，不是 Vitest CLI 支持的选项
+
+修复方式：
+
+- 直接执行仓库标准命令：`pnpm test`
+- 如果以后确实需要串行策略，先查当前 Vitest 版本支持的官方参数，不要直接套 Jest 心智
+
+---
+
 ## 建议保留的测试护栏
 
 下面这些测试已经证明有价值，不要删：
@@ -943,7 +992,7 @@ Resource not accessible by personal access token
 
 ## 当前结论
 
-这次已确认并修复或加固的真实坑点有七个：
+这次已确认并修复或加固的真实坑点有九个：
 
 1. GitHub Actions job 级 `if` 不能直接引用 `matrix.*`
 2. 通过 `pnpm ... -- ...` 调脚本时，CLI 解析必须显式忽略裸 `--`
@@ -952,5 +1001,7 @@ Resource not accessible by personal access token
 5. GitHub Actions 的 Node runtime 弃用告警要看 action metadata；必要时要用仓库内脚本或 CLI/REST API 替换旧 JavaScript action
 6. 能 dispatch workflow 的 token，不代表有 GitHub 仓库治理 API 所需的 Administration 权限
 7. release tag ruleset 必须显式放行 GitHub Actions integration，否则自动打 tag 会被自己配置的保护规则拦下
+8. 个人账号仓库当前不能直接把 `github-actions` integration 作为 tag ruleset bypass actor，需要退到兼容模式或更换仓库/凭据模型
+9. `vitest` 不支持 `--runInBand`，不能直接套用 Jest 的命令参数
 
 这几个问题都已经在代码、脚本和测试中补了护栏，后续如果再次出现同类问题，优先先看本文件。
