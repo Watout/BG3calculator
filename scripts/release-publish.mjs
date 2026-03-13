@@ -4,6 +4,10 @@ import process from "node:process";
 import { URL, pathToFileURL } from "node:url";
 
 import { collectReleaseAssets, listFilesRecursively } from "./release-collect-assets.mjs";
+import {
+  formatGitHubTokenRequirement,
+  getGitHubToken
+} from "./github-workflow-dispatch.mjs";
 
 const GITHUB_API_VERSION = "2022-11-28";
 
@@ -130,12 +134,16 @@ export function printHelp() {
   ].join("\n");
 }
 
-export function resolveGitHubToken(env = process.env) {
-  const token = env.GITHUB_TOKEN ?? env.GH_TOKEN ?? null;
+export function resolveGitHubToken({
+  env = process.env,
+  repositorySlug = env.GITHUB_REPOSITORY ?? null
+} = {}) {
+  const token = getGitHubToken(env, { repositorySlug });
   if (!token) {
-    throw new ReleasePublishError(
-      "Missing GitHub token. Set GITHUB_TOKEN or GH_TOKEN before running release:publish."
-    );
+    throw new ReleasePublishError(formatGitHubTokenRequirement({
+      action: "running release:publish",
+      repositorySlug
+    }));
   }
 
   return token;
@@ -492,8 +500,12 @@ export async function runReleasePublish({
     throw new ReleasePublishError("Missing required --name argument.");
   }
 
-  const token = resolveGitHubToken(env);
-  const repository = parseRepository(options.repo ?? env.GITHUB_REPOSITORY ?? null);
+  const repositorySlug = options.repo ?? env.GITHUB_REPOSITORY ?? null;
+  const token = resolveGitHubToken({
+    env,
+    repositorySlug
+  });
+  const repository = parseRepository(repositorySlug);
   const releaseFiles = await collectReleaseFiles({
     input: options.input,
     readdirImpl

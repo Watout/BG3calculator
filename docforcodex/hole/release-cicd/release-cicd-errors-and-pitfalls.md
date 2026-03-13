@@ -577,6 +577,60 @@ Node.js 20 actions are deprecated. The following actions are running on Node.js 
 
 ---
 
+### 9. 多仓库共用全局 token 容易串权限，贴进聊天/脚本的 token 也应视为已泄露
+
+错误现象：
+
+- 本地同时维护多个 GitHub 仓库，但长期只设置一个全局 `GITHUB_TOKEN`
+- 想给某个仓库单独分配 Fine-grained token，却发现本地脚本只会读取全局变量
+- 或者把 token 直接贴进聊天、脚本、截图、命令历史之后，仍继续尝试复用这枚 token
+
+根因：
+
+- 之前本地脚本主要只认 `GH_TOKEN` / `GITHUB_TOKEN`
+- 这会让多个项目天然倾向共用同一枚 token，既不利于最小权限，也不利于后续轮换
+- 一旦 token 出现在聊天记录、日志、截图、提交历史或公开文本里，就不再是安全凭据
+
+解决路径：
+
+- 为每个仓库单独创建 Fine-grained token
+- 优先把 token 存到仓库专属环境变量，而不是长期共用一个全局 `GITHUB_TOKEN`
+- 当前仓库脚本已支持以下自动发现顺序：
+  - 先读当前 shell 的 `GH_TOKEN` / `GITHUB_TOKEN`
+  - 若两者缺失，再读仓库专属变量
+  - 当前仓库支持的变量示例：
+    - `GH_TOKEN_BG3CALCULATOR`
+    - `GITHUB_TOKEN_BG3CALCULATOR`
+    - `GH_TOKEN_WATOUT_BG3CALCULATOR`
+    - `GITHUB_TOKEN_WATOUT_BG3CALCULATOR`
+- 若 token 已经贴到聊天、日志、截图或脚本，先去 GitHub 立即撤销并重建，再重新写入安全的本地环境变量
+
+验证方式：
+
+- `pnpm exec vitest run scripts/github-workflow-dispatch.test.ts scripts/release-prepare.test.ts scripts/release-publish.test.ts scripts/tauri-remote-macos-build.test.ts --config vitest.config.ts`
+- 测试已覆盖：
+  - 按仓库名推导 token 环境变量
+  - `release:prepare` 自动识别仓库专属 token
+  - `release:publish` 接受仓库专属 token
+
+后续防回归建议：
+
+- 新增任何 GitHub API / workflow dispatch / release 上传脚本时，统一复用仓库专属 token 发现逻辑，不再各写一套
+- 文档示例优先展示项目专属 token 变量，降低“复制粘贴后所有仓库共用同一 token”的概率
+- 若用户把 token 直接贴进对话，应默认提醒先撤销再重建，而不是继续消费这枚凭据
+
+相关文件：
+
+- `/scripts/github-workflow-dispatch.mjs`
+- `/scripts/release-prepare.mjs`
+- `/scripts/release-publish.mjs`
+- `/scripts/tauri-remote-macos-build.mjs`
+- `/docsforcodex/local-cicd-orchestration.md`
+- `/docsforcodex/codex-local-setup-and-release.md`
+- `/docsforcodex/overall.md`
+
+---
+
 ## 当前实现上的高敏感区域
 
 ### 1. `desktop-build.yml` 的动态 matrix 是高敏感配置

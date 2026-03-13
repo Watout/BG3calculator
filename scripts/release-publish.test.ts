@@ -244,4 +244,50 @@ describe("release publish script", (): void => {
       })
     ).rejects.toThrow(ReleasePublishError);
   });
+
+  it("accepts a repository-scoped GitHub token", async (): Promise<void> => {
+    const fixtureRoot = await createReleaseFixture();
+    fixtureRoots.push(fixtureRoot);
+
+    const fetchImpl = async (
+      input: string | URL | Request,
+      init?: { method?: string }
+    ): Promise<Response> => {
+      const requestUrl = String(input);
+
+      if (requestUrl.endsWith("/releases/tags/0.1.4")) {
+        return createJsonResponse({ message: "Not Found" }, 404);
+      }
+
+      if (requestUrl.endsWith("/releases") && init?.method === "POST") {
+        return createJsonResponse({
+          assets: [],
+          id: 42,
+          upload_url: "https://uploads.github.com/repos/example/repo/releases/42/assets{?name,label}"
+        });
+      }
+
+      if (requestUrl.startsWith("https://uploads.github.com/repos/example/repo/releases/42/assets?name=")) {
+        return createJsonResponse({
+          id: 100,
+          name: new URL(requestUrl).searchParams.get("name")
+        });
+      }
+
+      throw new Error(`Unexpected request: ${init?.method ?? "GET"} ${requestUrl}`);
+    };
+
+    const result = await runReleasePublish({
+      argv: ["--input", fixtureRoot, "--tag", "0.1.4", "--name", "0.1.4"],
+      env: {
+        ...process.env,
+        GITHUB_REPOSITORY: "Watout/BG3calculator",
+        GITHUB_TOKEN_BG3CALCULATOR: "repo-token"
+      },
+      fetchImpl
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Created GitHub release 0.1.4.");
+  });
 });

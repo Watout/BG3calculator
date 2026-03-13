@@ -3,3 +3,4 @@
 - [x] Update package scripts and CI/CD docs to prefer the new orchestration entrypoints.
 - [x] Generalize the local `cicd` skill into a reusable CI/CD discovery-and-trigger workflow.
 - [x] Record the new no-`gh` local dispatch path and orchestration rules in pitfall docs.
+- [x] Add repository-scoped GitHub token discovery so local multi-repo setups can keep separate Fine-grained tokens.

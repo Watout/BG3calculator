@@ -96,6 +96,24 @@ pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm release
 pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm cicd:dispatch-workflow -- --workflow prepare-release.yml --ref main --input tag=0.1.8 --wait"
 ```
 
+如果你同时维护多个 GitHub 项目，推荐不要长期共用一个全局 token，而是为每个仓库单独保存项目专属环境变量。当前仓库已经支持自动识别：
+
+```powershell
+pwsh.exe -NoProfile -Command "[System.Environment]::SetEnvironmentVariable('GITHUB_TOKEN_BG3CALCULATOR', '<github-token>', 'User')"
+pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
+```
+
+兼容的变量名模式：
+
+- 全局变量：`GH_TOKEN`、`GITHUB_TOKEN`
+- 仓库级变量：`GH_TOKEN_BG3CALCULATOR`、`GITHUB_TOKEN_BG3CALCULATOR`
+- owner + repo 级变量：`GH_TOKEN_WATOUT_BG3CALCULATOR`、`GITHUB_TOKEN_WATOUT_BG3CALCULATOR`
+
+优先级：
+
+- 当前 shell 显式设置的 `GH_TOKEN` / `GITHUB_TOKEN` 优先
+- 若全局变量缺失，脚本自动回退到仓库级变量
+
 ---
 
 ## 3. 仓库内的 CI / CD 约定
@@ -134,6 +152,12 @@ pwsh.exe -NoProfile -Command "pnpm test"
 
 ```powershell
 pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm cicd:dispatch-workflow -- --workflow desktop-build.yml --ref main --input target=windows-x64 --input request_id=manual --wait"
+```
+
+如果 token 已经保存成项目专属环境变量，上面的命令可以直接简化成：
+
+```powershell
+pwsh.exe -NoProfile -Command "pnpm cicd:dispatch-workflow -- --workflow desktop-build.yml --ref main --input target=windows-x64 --input request_id=manual --wait"
 ```
 
 ### 3.2 发布流程
@@ -206,6 +230,8 @@ pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm release
 - `pnpm release:prepare` 会根据本地是否具备 token 和 `prepare-release.yml` 自动选择 dispatch 或本地手工路径
 - `pnpm release:prepare-local` 默认要求工作树干净；只有显式传 `--auto-commit` 时，才会先提交当前改动
 - dispatch 路径只拦截远端同名 tag 复用，不会因为当前机器上残留的本地 tag 而拒绝触发 workflow
+- token 读取支持 `GH_TOKEN` / `GITHUB_TOKEN`，也支持按仓库名自动发现的项目专属变量
+- 如果 token 曾贴进聊天记录、截图、脚本或提交历史，先去 GitHub 立即撤销并重建，不要继续复用
 
 如果 preflight 因版本不一致而失败，`release-desktop` 会停在 `verify-workspace`，不会继续构建 Windows / macOS 包，也不会更新 GitHub Release 资产。
 

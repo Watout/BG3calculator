@@ -219,7 +219,9 @@ export function printHelp() {
     "  --help, -h                 Show this help text.",
     "",
     "Required environment variables:",
-    "  GH_TOKEN or GITHUB_TOKEN   GitHub token with workflow dispatch/read permissions."
+    "  GH_TOKEN or GITHUB_TOKEN   Generic GitHub token with workflow dispatch/read permissions.",
+    "                             Repository-scoped fallbacks are also supported,",
+    "                             for example GITHUB_TOKEN_BG3CALCULATOR."
   ].join("\n");
 }
 
@@ -266,8 +268,64 @@ export function resolveRepositorySlug({ override, remoteUrl, env = process.env }
   return parseGitHubRepository(remoteUrl);
 }
 
-export function getGitHubToken(env = process.env) {
-  return env.GH_TOKEN ?? env.GITHUB_TOKEN ?? null;
+export function normalizeGitHubTokenEnvSuffix(value) {
+  return value.replace(/[^A-Za-z0-9]+/gu, "_").replace(/^_+|_+$/gu, "").toUpperCase();
+}
+
+export function buildRepositoryScopedTokenEnvNames(repositorySlug) {
+  if (!repositorySlug) {
+    return [];
+  }
+
+  const [owner = "", repo = ""] = repositorySlug.split("/");
+  const repoSuffix = normalizeGitHubTokenEnvSuffix(repo);
+  const ownerSuffix = normalizeGitHubTokenEnvSuffix(owner);
+  const candidateSuffixes = [];
+
+  if (repoSuffix) {
+    candidateSuffixes.push(repoSuffix);
+  }
+
+  if (ownerSuffix && repoSuffix) {
+    candidateSuffixes.push(`${ownerSuffix}_${repoSuffix}`);
+  }
+
+  const envNames = new Set();
+  for (const suffix of candidateSuffixes) {
+    envNames.add(`GH_TOKEN_${suffix}`);
+    envNames.add(`GITHUB_TOKEN_${suffix}`);
+  }
+
+  return [...envNames];
+}
+
+export function formatGitHubTokenRequirement({
+  action = "dispatching workflows",
+  repositorySlug = null
+} = {}) {
+  const scopedEnvNames = buildRepositoryScopedTokenEnvNames(repositorySlug);
+
+  if (scopedEnvNames.length === 0) {
+    return `Set GH_TOKEN or GITHUB_TOKEN before ${action}.`;
+  }
+
+  return `Set GH_TOKEN or GITHUB_TOKEN before ${action}, or set a repository-scoped token: ${scopedEnvNames.join(", ")}.`;
+}
+
+export function getGitHubToken(env = process.env, { repositorySlug = null } = {}) {
+  const genericToken = env.GH_TOKEN ?? env.GITHUB_TOKEN ?? null;
+  if (genericToken) {
+    return genericToken;
+  }
+
+  const scopedEnvNames = buildRepositoryScopedTokenEnvNames(repositorySlug);
+  for (const envName of scopedEnvNames) {
+    if (env[envName]) {
+      return env[envName];
+    }
+  }
+
+  return null;
 }
 
 export function validateExecutionContext({
@@ -281,9 +339,10 @@ export function validateExecutionContext({
   const errors = [];
 
   if (!token) {
-    errors.push(
-      "Missing GitHub token. Set GH_TOKEN or GITHUB_TOKEN before dispatching workflows."
-    );
+    errors.push(formatGitHubTokenRequirement({
+      action: "dispatching workflows",
+      repositorySlug
+    }));
   }
 
   if (!repositorySlug) {
@@ -570,7 +629,6 @@ export async function runGitHubWorkflowDispatch({
     throw new WorkflowDispatchError("Global fetch is unavailable in this Node.js runtime.");
   }
 
-  const token = getGitHubToken(env);
   const resolvedCwd = options.cwd ?? cwd;
   const remoteUrlResult = await commandRunner(
     "git",
@@ -583,6 +641,7 @@ export async function runGitHubWorkflowDispatch({
     override: options.repo,
     remoteUrl
   });
+  const token = getGitHubToken(env, { repositorySlug });
   const localBranch = await gitStdout(
     commandRunner,
     ["rev-parse", "--abbrev-ref", "HEAD"],

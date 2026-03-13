@@ -20,7 +20,7 @@
 
 - 新增 `pnpm tauri:build:macos:remote` 作为 Windows 本机入口。
 - 新增 `scripts/tauri-remote-macos-build.mjs`：
-  - 读取 `GH_TOKEN` / `GITHUB_TOKEN`
+  - 读取 `GH_TOKEN` / `GITHUB_TOKEN`，也支持仓库专属变量如 `GITHUB_TOKEN_BG3CALCULATOR`
   - 校验当前分支干净且已推到 `origin`
   - 调 GitHub Actions workflow dispatch
   - 轮询定位本次 workflow run

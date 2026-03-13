@@ -54,6 +54,13 @@
 pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm release:prepare-remote -- --tag 0.1.8"
 ```
 
+如果你有多个项目，推荐改用项目专属环境变量，而不是长期共用一个全局 token：
+
+```powershell
+pwsh.exe -NoProfile -Command "[System.Environment]::SetEnvironmentVariable('GITHUB_TOKEN_BG3CALCULATOR', '<github-token>', 'User')"
+pwsh.exe -NoProfile -Command "pnpm release:prepare-remote -- --tag 0.1.8"
+```
+
 ### 方式 B：手工命令
 
 适用场景：
@@ -107,6 +114,7 @@ pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8 --auto-commit"
 
 - `pnpm release:prepare` 会优先尝试 dispatch `prepare-release.yml`；只有本地缺少 token 或显式指定 `--mode manual` 时，才回退到本地手工发布路径
 - dispatch 路径只把“远端已存在同名 tag”视为阻塞条件；仅存在本地同名 tag 时，本地 wrapper 仍允许直接触发远端 workflow
+- dispatch / publish / 远程构建脚本现在都支持仓库专属 token 变量，例如 `GITHUB_TOKEN_BG3CALCULATOR`
 
 ## 必须遵守的约束
 

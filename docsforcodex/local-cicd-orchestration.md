@@ -48,6 +48,29 @@
 pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm cicd:dispatch-workflow -- --workflow prepare-release.yml --ref main --input tag=0.1.8 --wait"
 ```
 
+如果你不想让多个项目长期共用一个全局 token，现在也支持按仓库名自动识别项目专属变量：
+
+```powershell
+pwsh.exe -NoProfile -Command "[System.Environment]::SetEnvironmentVariable('GITHUB_TOKEN_BG3CALCULATOR', '<github-token>', 'User')"
+pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
+```
+
+当前 token 发现顺序：
+
+- 先读取当前 shell 里的 `GH_TOKEN` / `GITHUB_TOKEN`
+- 如果两者都没设，再按仓库名查找专属变量
+- 当前仓库支持的专属变量示例：
+  - `GH_TOKEN_BG3CALCULATOR`
+  - `GITHUB_TOKEN_BG3CALCULATOR`
+  - `GH_TOKEN_WATOUT_BG3CALCULATOR`
+  - `GITHUB_TOKEN_WATOUT_BG3CALCULATOR`
+
+推荐做法：
+
+- 每个项目单独创建 Fine-grained token
+- 优先保存到项目专属环境变量，而不是长期共用一个全局 `GITHUB_TOKEN`
+- 如果 token 曾贴进聊天记录、脚本、截图或日志，直接视为已泄露，先去 GitHub 撤销再重建
+
 这条路径适用于：
 
 - 已有远端源码就是事实来源
@@ -117,6 +140,7 @@ pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm release
 
 - dispatch 路径会检查远端 tag 是否已存在，但不会因为“当前机器上的同名本地 tag”而拒绝触发 workflow
 - 手工本地路径仍然会同时拦截本地和远端 tag 复用
+- `release:prepare`、`release:prepare-remote`、`cicd:dispatch-workflow` 现在都支持项目专属 token 环境变量
 
 ## 适配其他仓库时的判断方式
 

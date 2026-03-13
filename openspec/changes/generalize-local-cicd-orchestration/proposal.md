@@ -18,4 +18,5 @@ That works for BG3calculator today, but it does not scale into a reusable local 
 
 - The repository exposes a first-class local release orchestration command.
 - The repository exposes a generic workflow dispatch script that uses GitHub REST API instead of requiring `gh`.
+- The repository can discover repository-scoped GitHub token environment variables so multiple local projects do not need to share one global token.
 - `docsforcodex` and the local `cicd` skill describe a reusable “discover triggers -> validate -> commit -> push/tag or dispatch” pattern.

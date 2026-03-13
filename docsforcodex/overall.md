@@ -34,8 +34,8 @@ pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:preflight -- -
 ```powershell
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:prepare -- --tag 0.1.8"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:prepare-local -- --tag 0.1.8"
-pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; & corepack.cmd pnpm@10.32.1 release:prepare-remote -- --tag 0.1.8"
-pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; & corepack.cmd pnpm@10.32.1 cicd:dispatch-workflow -- --workflow desktop-build.yml --ref main --input target=macos-universal --input request_id=manual --wait"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 release:prepare-remote -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 cicd:dispatch-workflow -- --workflow desktop-build.yml --ref main --input target=macos-universal --input request_id=manual --wait"
 ```
 
 桌面端打包命令：
@@ -48,13 +48,15 @@ pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 tauri:build:windows"
 从 Windows 本机拉起远程 macOS 打包：
 
 ```powershell
-pwsh.exe -NoProfile -Command "$env:GH_TOKEN = '<github-token>'; & corepack.cmd pnpm@10.32.1 tauri:build:macos:remote"
-pwsh.exe -NoProfile -Command "$env:GH_TOKEN = '<github-token>'; & corepack.cmd pnpm@10.32.1 tauri:build:macos:remote -- --dry-run"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 tauri:build:macos:remote"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 tauri:build:macos:remote -- --dry-run"
 ```
 
 说明：
 
 - `GH_TOKEN` / `GITHUB_TOKEN` 至少要能触发当前仓库的 GitHub Actions 并读取 artifact。
+- 现在也支持项目专属环境变量，例如 `GH_TOKEN_BG3CALCULATOR`、`GITHUB_TOKEN_BG3CALCULATOR`、`GH_TOKEN_WATOUT_BG3CALCULATOR`、`GITHUB_TOKEN_WATOUT_BG3CALCULATOR`。
+- 如果你同时维护多个仓库，优先给每个仓库单独创建 Fine-grained token，并保存到项目专属环境变量。
 - 远程 macOS 打包要求当前分支工作树干净，且 `origin/<branch>` 与本地 `HEAD` 一致；脚本会在 dispatch 前主动校验。
 - 默认下载目录：`.artifacts/macos-universal/<request_id>/`
 - 远程打包只跑 `macos-universal`，不会顺带重跑 Windows bundle。
@@ -88,6 +90,7 @@ GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm 
 - `pnpm release:prepare-local`：本地完成版本同步、校验、commit、push main、push tag；显式传 `--auto-commit` 时可先提交当前改动
 - `pnpm release:prepare-remote`：本地直接 dispatch `prepare-release.yml`，参数入口是 `--tag`
 - `pnpm cicd:dispatch-workflow`：通用 GitHub Actions `workflow_dispatch` 入口，不依赖 `gh`
+- `pnpm release:prepare`、`pnpm cicd:dispatch-workflow`、`pnpm tauri:build:macos:remote`、`pnpm release:publish` 都支持按仓库名自动发现专属 token
 - 通用流程说明见：`docsforcodex/local-cicd-orchestration.md`
 
 正式发布约定：

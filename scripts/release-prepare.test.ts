@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   parseCliArgs,
+  runReleasePrepare,
   selectReleasePath,
   validateTagCollisionState
 } from "./release-prepare.mjs";
@@ -72,5 +73,71 @@ describe("release prepare entry script", (): void => {
     ).toThrow(
       "Local tag already exists. Delete the local tag or bump to a new release version before running the manual path."
     );
+  });
+
+  it("auto mode detects repository-scoped tokens for dispatch dry runs", async (): Promise<void> => {
+    const commandRunner = async (
+      command: string,
+      args: string[]
+    ): Promise<{ exitCode: number; stderr: string; stdout: string }> => {
+      const key = `${command} ${args.join(" ")}`;
+
+      switch (key) {
+        case "git remote get-url origin":
+          return {
+            exitCode: 0,
+            stderr: "",
+            stdout: "https://github.com/Watout/BG3calculator.git\n"
+          };
+        case "git tag --list 0.1.8":
+          return {
+            exitCode: 0,
+            stderr: "",
+            stdout: ""
+          };
+        case "git ls-remote --tags origin refs/tags/0.1.8":
+          return {
+            exitCode: 0,
+            stderr: "",
+            stdout: ""
+          };
+        case "git rev-parse --abbrev-ref HEAD":
+          return {
+            exitCode: 0,
+            stderr: "",
+            stdout: "main\n"
+          };
+        case "git status --short":
+          return {
+            exitCode: 0,
+            stderr: "",
+            stdout: ""
+          };
+        case "git rev-parse HEAD":
+          return {
+            exitCode: 0,
+            stderr: "",
+            stdout: "abcdef1234567890\n"
+          };
+        default:
+          throw new Error(`Unexpected command: ${key}`);
+      }
+    };
+
+    const result = await runReleasePrepare({
+      argv: ["--tag", "0.1.8", "--dry-run"],
+      commandRunner,
+      cwd: process.cwd(),
+      env: {
+        GITHUB_TOKEN_BG3CALCULATOR: "repo-token"
+      },
+      fetchImpl: async () => {
+        throw new Error("fetch should not be called in dry-run mode");
+      }
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Selected path: dispatch");
+    expect(result.stdout).toContain("Workflow: prepare-release.yml");
   });
 });

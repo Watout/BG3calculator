@@ -13,6 +13,11 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import {
+  formatGitHubTokenRequirement,
+  getGitHubToken
+} from "./github-workflow-dispatch.mjs";
+
 export const WORKFLOW_FILE = "desktop-build.yml";
 export const TARGET_NAME = "macos-universal";
 export const ARTIFACT_NAME = "bg3calculator-macos-universal";
@@ -105,7 +110,9 @@ export function printHelp() {
     "  --help, -h                 Show this help text.",
     "",
     "Required environment variables:",
-    "  GH_TOKEN or GITHUB_TOKEN   GitHub token that can dispatch workflows and read artifacts.",
+    "  GH_TOKEN or GITHUB_TOKEN   Generic GitHub token that can dispatch workflows and read artifacts.",
+    "                             Repository-scoped fallbacks are also supported,",
+    "                             for example GITHUB_TOKEN_BG3CALCULATOR.",
     "",
     "Optional environment variables:",
     "  BG3DC_GITHUB_REPOSITORY    Override the GitHub repository slug (owner/repo).",
@@ -159,10 +166,6 @@ export function resolveRepositorySlug({ override, remoteUrl }) {
   return parseGitHubRepository(remoteUrl);
 }
 
-export function getGitHubToken(env) {
-  return env.GH_TOKEN ?? env.GITHUB_TOKEN ?? null;
-}
-
 export function buildDispatchPayload({ ref, requestId, target = TARGET_NAME }) {
   return {
     ref,
@@ -189,7 +192,10 @@ export function validateExecutionContext({
   const errors = [];
 
   if (!token) {
-    errors.push("Set GH_TOKEN or GITHUB_TOKEN before running the remote macOS build.");
+    errors.push(formatGitHubTokenRequirement({
+      action: "running the remote macOS build",
+      repositorySlug
+    }));
   }
 
   if (!repositorySlug) {
@@ -363,7 +369,7 @@ export async function runRemoteMacosBuild({
     override: env.BG3DC_GITHUB_REPOSITORY ?? env.GITHUB_REPOSITORY ?? null,
     remoteUrl: originRemoteUrl
   });
-  const token = getGitHubToken(env);
+  const token = getGitHubToken(env, { repositorySlug });
   const localValidationErrors = validateExecutionContext({
     token,
     workingTreeStatus,

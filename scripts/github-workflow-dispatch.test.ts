@@ -3,8 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_TIMEOUT_MINUTES,
   WorkflowDispatchError,
+  buildRepositoryScopedTokenEnvNames,
   buildGitHubUrl,
   commitAllChangesIfNeeded,
+  formatGitHubTokenRequirement,
+  getGitHubToken,
   parseCliArgs,
   parseGitHubRepository,
   parseInputAssignment,
@@ -68,6 +71,51 @@ describe("github workflow dispatch script", (): void => {
     );
   });
 
+  it("builds repository-scoped token environment variable names", (): void => {
+    expect(buildRepositoryScopedTokenEnvNames("Watout/BG3calculator")).toEqual([
+      "GH_TOKEN_BG3CALCULATOR",
+      "GITHUB_TOKEN_BG3CALCULATOR",
+      "GH_TOKEN_WATOUT_BG3CALCULATOR",
+      "GITHUB_TOKEN_WATOUT_BG3CALCULATOR"
+    ]);
+  });
+
+  it("prefers generic tokens but falls back to repository-scoped tokens", (): void => {
+    expect(
+      getGitHubToken(
+        {
+          GH_TOKEN_BG3CALCULATOR: "repo-token"
+        },
+        {
+          repositorySlug: "Watout/BG3calculator"
+        }
+      )
+    ).toBe("repo-token");
+
+    expect(
+      getGitHubToken(
+        {
+          GH_TOKEN: "generic-token",
+          GH_TOKEN_BG3CALCULATOR: "repo-token"
+        },
+        {
+          repositorySlug: "Watout/BG3calculator"
+        }
+      )
+    ).toBe("generic-token");
+  });
+
+  it("formats token guidance with repository-scoped fallbacks", (): void => {
+    expect(
+      formatGitHubTokenRequirement({
+        action: "dispatching workflows",
+        repositorySlug: "Watout/BG3calculator"
+      })
+    ).toBe(
+      "Set GH_TOKEN or GITHUB_TOKEN before dispatching workflows, or set a repository-scoped token: GH_TOKEN_BG3CALCULATOR, GITHUB_TOKEN_BG3CALCULATOR, GH_TOKEN_WATOUT_BG3CALCULATOR, GITHUB_TOKEN_WATOUT_BG3CALCULATOR."
+    );
+  });
+
   it("reports missing local dispatch prerequisites", (): void => {
     expect(
       validateExecutionContext({
@@ -79,7 +127,7 @@ describe("github workflow dispatch script", (): void => {
         workingTreeStatus: " M README.md"
       })
     ).toEqual([
-      "Missing GitHub token. Set GH_TOKEN or GITHUB_TOKEN before dispatching workflows.",
+      "Set GH_TOKEN or GITHUB_TOKEN before dispatching workflows.",
       "Unable to resolve the GitHub repository slug from git origin or --repo.",
       'Check out branch "main" locally before dispatching from it. Current branch: feature/test.',
       "Commit or stash local changes before dispatching a workflow."

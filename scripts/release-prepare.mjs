@@ -3,6 +3,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import {
+  parseGitHubRepository,
   getGitHubToken,
   runCommand,
   runGitHubWorkflowDispatch
@@ -200,10 +201,25 @@ export async function runReleasePrepare({
 
   parseReleaseTag(options.tag);
   const hasDispatchWorkflow = await workflowExists(cwd, PREPARE_RELEASE_WORKFLOW);
+  const remoteUrlResult = await (commandRunner ?? runCommand)(
+    "git",
+    ["remote", "get-url", "origin"],
+    { allowFailure: true, cwd }
+  );
+  let repositorySlug = env.GITHUB_REPOSITORY ?? env.BG3DC_GITHUB_REPOSITORY ?? null;
+
+  if (!repositorySlug && remoteUrlResult.exitCode === 0) {
+    try {
+      repositorySlug = parseGitHubRepository(remoteUrlResult.stdout.trim());
+    } catch {
+      repositorySlug = null;
+    }
+  }
+
   const selectedPath = selectReleasePath({
     hasDispatchWorkflow,
     mode: options.mode,
-    token: getGitHubToken(env)
+    token: getGitHubToken(env, { repositorySlug })
   });
   const collisionState = await getTagCollisionState(
     commandRunner ?? runCommand,

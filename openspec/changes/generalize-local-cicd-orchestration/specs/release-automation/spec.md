@@ -40,3 +40,11 @@ The repository MUST provide a local workflow dispatch entrypoint that can trigge
 - **GIVEN** no `GH_TOKEN` or `GITHUB_TOKEN` is present
 - **WHEN** the local dispatch command runs
 - **THEN** it fails with a clear token requirement message
+
+#### Scenario: Repository-scoped local token is available
+
+- **GIVEN** no global `GH_TOKEN` or `GITHUB_TOKEN` is present
+- **AND** a repository-scoped token environment variable for the current repository is present locally
+- **WHEN** the local dispatch or release orchestration command runs
+- **THEN** it treats that repository-scoped token as valid local authentication
+- **AND** it does not require the operator to reuse one global token across unrelated repositories
