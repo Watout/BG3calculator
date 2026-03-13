@@ -6,6 +6,7 @@ export const MIN_CRITICAL_THRESHOLD = 1;
 export const MAX_CRITICAL_THRESHOLD = 20;
 
 export interface CompactNumericWindowConfig {
+  readonly descending?: boolean;
   readonly min: number;
   readonly max?: number;
   readonly visibleItems?: number;
@@ -37,6 +38,32 @@ function getCompactNumericItemCount(config: CompactNumericWindowConfig): number 
   }
 
   return config.max - config.min + 1;
+}
+
+function usesDescendingWindow(config: CompactNumericWindowConfig): boolean {
+  return config.descending === true && config.max !== undefined;
+}
+
+function getCompactNumericSelectedIndex(
+  value: number,
+  config: CompactNumericWindowConfig,
+): number {
+  if (usesDescendingWindow(config)) {
+    return config.max! - value;
+  }
+
+  return value - config.min;
+}
+
+function getCompactNumericValueAtIndex(
+  index: number,
+  config: CompactNumericWindowConfig,
+): number {
+  if (usesDescendingWindow(config)) {
+    return config.max! - index;
+  }
+
+  return config.min + index;
 }
 
 export function clampCompactNumericValue(
@@ -83,7 +110,7 @@ export function getCompactNumericWindowStart(
   config: CompactNumericWindowConfig,
 ): number {
   const normalizedValue = clampCompactNumericValue(value, config);
-  const selectedIndex = normalizedValue - config.min;
+  const selectedIndex = getCompactNumericSelectedIndex(normalizedValue, config);
   const itemCount = getCompactNumericItemCount(config);
   const visibleItems = resolveVisibleItems(config);
   const viewportStartIndex =
@@ -120,7 +147,9 @@ export function getCompactNumericWindowValues(
       ? windowSize
       : Math.max(0, Math.min(windowSize, itemCount - clampedStart));
 
-  return Array.from({ length }, (_, index) => config.min + clampedStart + index);
+  return Array.from({ length }, (_, index) =>
+    getCompactNumericValueAtIndex(clampedStart + index, config),
+  );
 }
 
 export function buildCompactNumericWindow(
@@ -128,7 +157,7 @@ export function buildCompactNumericWindow(
   config: CompactNumericWindowConfig,
 ): CompactNumericWindowState {
   const normalizedValue = normalizeCompactNumericValue(value, config);
-  const selectedIndex = normalizedValue - config.min;
+  const selectedIndex = getCompactNumericSelectedIndex(normalizedValue, config);
   const itemCount = getCompactNumericItemCount(config);
   const visibleItems = resolveVisibleItems(config);
   const viewportStartIndex =

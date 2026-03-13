@@ -47,6 +47,24 @@ describe("compact numeric window helpers", (): void => {
     expect(values[values.length - 1]).toBe(20);
   });
 
+  it("supports descending bounded windows for critical-threshold presentation", (): void => {
+    const windowState = buildCompactNumericWindow("20", {
+      min: MIN_CRITICAL_THRESHOLD,
+      max: MAX_CRITICAL_THRESHOLD,
+      descending: true,
+    });
+    const values = getCompactNumericWindowValues(windowState.start, {
+      min: MIN_CRITICAL_THRESHOLD,
+      max: MAX_CRITICAL_THRESHOLD,
+      descending: true,
+    });
+
+    expect(windowState.start).toBe(0);
+    expect(windowState.initialScrollTop).toBe(0);
+    expect(values.slice(0, 4)).toEqual([20, 19, 18, 17]);
+    expect(values[values.length - 1]).toBe(9);
+  });
+
   it("normalizes invalid values back into the configured numeric range", (): void => {
     expect(normalizeCompactNumericValue("", { min: 1 })).toBe(1);
     expect(

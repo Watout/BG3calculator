@@ -40,6 +40,7 @@ type HistoryState = Readonly<Record<HistoryKey, readonly string[]>>;
 interface CompactNumericDropdownProps {
   readonly ariaLabel: string;
   readonly className?: string;
+  readonly descending?: boolean;
   readonly disabled?: boolean;
   readonly formatLabel?: (value: number) => string;
   readonly id?: string;
@@ -301,6 +302,7 @@ function HistoryTextInput({
 function CompactNumericDropdown({
   ariaLabel,
   className,
+  descending = false,
   disabled = false,
   formatLabel = formatPlainNumber,
   id,
@@ -312,10 +314,11 @@ function CompactNumericDropdown({
   const [isOpen, setIsOpen] = useState(false);
   const windowConfig = useMemo<CompactNumericWindowConfig>(
     () => ({
+      descending,
       min,
       max,
     }),
-    [max, min],
+    [descending, max, min],
   );
   const selectedValue = normalizeCompactNumericValue(value, windowConfig);
   const [windowStart, setWindowStart] = useState(() =>
@@ -1022,6 +1025,7 @@ function App(): JSX.Element {
                       id={criticalThresholdId}
                       ariaLabel={`攻击项 ${index + 1} 重击阈值`}
                       className="field-compact-dropdown"
+                      descending
                       formatLabel={formatCriticalThreshold}
                       min={MIN_CRITICAL_THRESHOLD}
                       max={MAX_CRITICAL_THRESHOLD}

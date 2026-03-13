@@ -425,15 +425,22 @@ select {
   right: auto;
   min-width: 100%;
   max-height: calc(var(--compact-option-height) * 8);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   padding: 4px;
   border: 1px solid rgba(129, 173, 217, 0.35);
   border-radius: 9px;
   background: rgba(7, 12, 18, 0.98);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.38);
   z-index: 1001;
+}
+
+.compact-dropdown-menu::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .compact-option {

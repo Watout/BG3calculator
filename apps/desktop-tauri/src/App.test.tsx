@@ -128,7 +128,13 @@ describe("App attack entry controls", (): void => {
     const criticalTrigger = screen.getByRole("button", { name: "攻击项 1 重击阈值" });
     fireEvent.click(criticalTrigger);
     listbox = screen.getByRole("listbox", { name: "攻击项 1 重击阈值" });
-    fireEvent.wheel(listbox, { deltaY: -240 });
+    expect(within(listbox).getAllByRole("option").slice(0, 4).map((option) => option.textContent)).toEqual([
+      "20+",
+      "19+",
+      "18+",
+      "17+",
+    ]);
+    fireEvent.wheel(listbox, { deltaY: 720 });
     listbox = screen.getByRole("listbox", { name: "攻击项 1 重击阈值" });
     fireEvent.click(within(listbox).getByRole("option", { name: "1+" }));
     expect(screen.queryByRole("listbox", { name: "攻击项 1 重击阈值" })).toBeNull();
