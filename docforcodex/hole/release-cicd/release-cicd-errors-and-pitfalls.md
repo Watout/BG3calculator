@@ -631,6 +631,90 @@ Node.js 20 actions are deprecated. The following actions are running on Node.js 
 
 ---
 
+### 10. 严格治理后，正式 release 不应再保留本地 manual fallback
+
+错误现象：
+
+- 仓库同时存在“远端 workflow 打 tag”和“本地直接 `commit/push/tag`”两套正式发版路径
+- 操作者难以回答“这次 release 的事实源到底是远端 `main`，还是某台开发机本地状态”
+- 一旦 `main` 启用保护规则，本地 manual 路径还会天然和规则对撞
+
+根因：
+
+- 旧版 `release:prepare` 既能 dispatch 远端 workflow，也能回退到本地 `release:prepare-local`
+- 旧版 `prepare-release.yml` 还会在 workflow 内同步版本、commit 并 push `main`
+- 这会把“release 准备”“版本变更”“tag 创建”混成一条既可本地、又可远端的双轨流程
+
+解决路径：
+
+- 删除 `/scripts/release-prepare-local.mjs`
+- 删除 `pnpm release:prepare-local` 和 `pnpm release:prepare-remote`
+- 把 `pnpm release:prepare` 固定为远端 `create-release-tag.yml` 的官方 wrapper
+- 把旧的 `prepare-release.yml` 改造为只在远端 `main` 上执行 `release:preflight` 并创建新 tag 的 `create-release-tag.yml`
+- release 版本同步改到 release PR 中完成，workflow 不再回写 `main`
+
+验证方式：
+
+- `package.json` 中只保留 `release:prepare`
+- `scripts/release-prepare.test.ts` 只覆盖远端 dispatch 路径
+- `.github/workflows/create-release-tag.yml` 不包含同步版本、commit、push main 逻辑
+
+后续防回归建议：
+
+- 若未来真的需要 break-glass 发布入口，必须显式单独设计权限边界，不要默默恢复为日常默认命令
+- 正式发布流程始终回答同一个问题：tag 是从远端受保护 `main` 生成的吗
+
+相关文件：
+
+- `/package.json`
+- `/scripts/release-prepare.mjs`
+- `/scripts/release-prepare.test.ts`
+- `/.github/workflows/create-release-tag.yml`
+- `/docsforcodex/action-cicd-release-flow.md`
+
+---
+
+### 11. 本地 `ahead/behind` 不等于远端 workflow 已看到这些提交
+
+错误现象：
+
+- 本地 `git status --short --branch` 显示 `ahead`
+- 操作者误以为只要本地 `main` 已包含目标代码，dispatch release workflow 就会使用这些本地提交
+- 结果远端 workflow 实际仍运行在旧的 `origin/main`
+
+根因：
+
+- GitHub Actions 的 `workflow_dispatch` 运行在远端 `ref` 对应的提交上
+- 本地 ahead 只是“你的分支比远端多了未推送提交”，不会自动成为远端 workflow 输入
+- 如果 release wrapper 还帮你自动 push，再叠加 `main` 保护规则，就更容易把事实源和权限边界搞混
+
+解决路径：
+
+- `pnpm release:prepare` 改为 `--no-push` 语义，只允许在 `origin/main` 与本地 `HEAD` 一致时 dispatch
+- 如果本地 ahead，先通过 PR / merge 把代码送上远端 `main`
+- 把“本地 ahead 不可直接当作 release 事实”写入主文档与坑点库
+
+验证方式：
+
+- `scripts/release-prepare.test.ts` 覆盖了远端 tag workflow dry-run
+- `scripts/github-workflow-dispatch.mjs` 新增 `--no-push` 支持，并在远端分支 SHA 不一致时直接报错
+- `docsforcodex/action-cicd-release-flow.md` 与 `README.md` 已同步说明“远端 `main` 才是 release 事实源”
+
+后续防回归建议：
+
+- 以后凡是 `workflow_dispatch` 型正式发布入口，都先明确“是否允许本地 push 后再 dispatch”；如果目标分支受保护，默认答案应为“不允许”
+- 如果用户贴出 `ahead` / `behind` 状态，优先先解释远端 SHA 和本地 HEAD 的关系，再谈 workflow 触发
+
+相关文件：
+
+- `/scripts/github-workflow-dispatch.mjs`
+- `/scripts/github-workflow-dispatch.test.ts`
+- `/scripts/release-prepare.mjs`
+- `/docsforcodex/action-cicd-release-flow.md`
+- `/README.md`
+
+---
+
 ## 当前实现上的高敏感区域
 
 ### 1. `desktop-build.yml` 的动态 matrix 是高敏感配置

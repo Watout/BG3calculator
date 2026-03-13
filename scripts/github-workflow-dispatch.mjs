@@ -23,6 +23,7 @@ export function parseCliArgs(argv) {
     dryRun: false,
     help: false,
     inputs: {},
+    noPush: false,
     pollIntervalMs: DEFAULT_POLL_INTERVAL_MS,
     ref: null,
     repo: null,
@@ -87,6 +88,11 @@ export function parseCliArgs(argv) {
 
     if (value === "--auto-commit") {
       options.autoCommit = true;
+      continue;
+    }
+
+    if (value === "--no-push") {
+      options.noPush = true;
       continue;
     }
 
@@ -209,6 +215,7 @@ export function printHelp() {
     "  --input key=value          Workflow input. Repeat for multiple inputs.",
     "  --repo <owner/name>        Override GitHub repository slug.",
     "  --auto-commit             Stage and commit all current changes before pushing.",
+    "  --no-push                 Require origin/<ref> to already match local HEAD and dispatch without pushing.",
     "  --commit-message <text>    Commit message used with --auto-commit.",
     "  --wait                     Poll until the workflow run finishes.",
     "  --require-success          Fail when the waited workflow run does not conclude successfully.",
@@ -331,6 +338,7 @@ export function getGitHubToken(env = process.env, { repositorySlug = null } = {}
 export function validateExecutionContext({
   autoCommit,
   localBranch,
+  noPush,
   ref,
   repositorySlug,
   token,
@@ -361,6 +369,10 @@ export function validateExecutionContext({
     errors.push(
       `Check out branch "${ref}" locally before dispatching from it. Current branch: ${localBranch}.`
     );
+  }
+
+  if (noPush && autoCommit) {
+    errors.push("Auto-commit cannot be used together with --no-push.");
   }
 
   if (!autoCommit && workingTreeStatus.trim().length > 0) {
@@ -654,6 +666,7 @@ export async function runGitHubWorkflowDispatch({
   const validationErrors = validateExecutionContext({
     autoCommit: options.autoCommit,
     localBranch,
+    noPush: options.noPush,
     ref,
     repositorySlug,
     token,
@@ -686,8 +699,25 @@ export async function runGitHubWorkflowDispatch({
     `Workflow: ${options.workflow}`,
     `Ref: ${ref}`,
     `Head SHA: ${localHeadSha}`,
+    `Push before dispatch: ${options.noPush ? "disabled" : "enabled"}`,
     `Auto commit: ${committed ? "yes" : options.autoCommit ? "no changes" : "disabled"}`
   ];
+
+  let remoteHeadSha = null;
+  if (options.noPush) {
+    remoteHeadSha = await resolveRemoteHeadSha(commandRunner, {
+      cwd: resolvedCwd,
+      ref
+    });
+
+    if (remoteHeadSha !== localHeadSha) {
+      throw new WorkflowDispatchError(
+        `Push branch "${ref}" so origin matches local HEAD ${localHeadSha.slice(0, 7)} before dispatching.`
+      );
+    }
+
+    summaryLines.push(`Remote HEAD SHA: ${remoteHeadSha}`);
+  }
 
   if (Object.keys(options.inputs).length > 0) {
     summaryLines.push(`Inputs: ${JSON.stringify(options.inputs)}`);
@@ -700,17 +730,19 @@ export async function runGitHubWorkflowDispatch({
     };
   }
 
-  await commandRunner("git", ["push", "origin", `HEAD:${BRANCH_REF_PREFIX}${ref}`], {
-    cwd: resolvedCwd
-  });
-  const remoteHeadSha = await resolveRemoteHeadSha(commandRunner, {
-    cwd: resolvedCwd,
-    ref
-  });
-  if (remoteHeadSha !== localHeadSha) {
-    throw new WorkflowDispatchError(
-      `Push branch "${ref}" so origin matches local HEAD ${localHeadSha.slice(0, 7)} before dispatching.`
-    );
+  if (!options.noPush) {
+    await commandRunner("git", ["push", "origin", `HEAD:${BRANCH_REF_PREFIX}${ref}`], {
+      cwd: resolvedCwd
+    });
+    remoteHeadSha = await resolveRemoteHeadSha(commandRunner, {
+      cwd: resolvedCwd,
+      ref
+    });
+    if (remoteHeadSha !== localHeadSha) {
+      throw new WorkflowDispatchError(
+        `Push branch "${ref}" so origin matches local HEAD ${localHeadSha.slice(0, 7)} before dispatching.`
+      );
+    }
   }
 
   const client = createGitHubClient({

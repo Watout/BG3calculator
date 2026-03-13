@@ -17,16 +17,17 @@ import {
 } from "./github-workflow-dispatch.mjs";
 
 describe("github workflow dispatch script", (): void => {
-  it("parses workflow, inputs, auto-commit, and wait options", (): void => {
+  it("parses workflow, inputs, auto-commit, no-push, and wait options", (): void => {
     expect(
       parseCliArgs([
         "--workflow",
-        "prepare-release.yml",
+        "create-release-tag.yml",
         "--input",
         "tag=0.1.8",
         "--input",
         "channel=stable",
         "--auto-commit",
+        "--no-push",
         "--wait"
       ])
     ).toEqual({
@@ -39,13 +40,14 @@ describe("github workflow dispatch script", (): void => {
         channel: "stable",
         tag: "0.1.8"
       },
+      noPush: true,
       pollIntervalMs: 10_000,
       ref: null,
       repo: null,
       requireSuccess: false,
       timeoutMinutes: DEFAULT_TIMEOUT_MINUTES,
       wait: true,
-      workflow: "prepare-release.yml"
+      workflow: "create-release-tag.yml"
     });
   });
 
@@ -121,6 +123,7 @@ describe("github workflow dispatch script", (): void => {
       validateExecutionContext({
         autoCommit: false,
         localBranch: "feature/test",
+        noPush: false,
         ref: "main",
         repositorySlug: "",
         token: null,
@@ -132,6 +135,20 @@ describe("github workflow dispatch script", (): void => {
       'Check out branch "main" locally before dispatching from it. Current branch: feature/test.',
       "Commit or stash local changes before dispatching a workflow."
     ]);
+  });
+
+  it("rejects auto-commit when dispatching without pushing", (): void => {
+    expect(
+      validateExecutionContext({
+        autoCommit: true,
+        localBranch: "main",
+        noPush: true,
+        ref: "main",
+        repositorySlug: "Watout/BG3calculator",
+        token: "token",
+        workingTreeStatus: ""
+      })
+    ).toEqual(["Auto-commit cannot be used together with --no-push."]);
   });
 
   it("stages and commits changes only when auto-commit is enabled", async (): Promise<void> => {

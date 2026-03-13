@@ -29,12 +29,11 @@ pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 tauri:dev"
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:preflight -- --tag 0.1.2"
 ```
 
-当前仓库已经补齐两条可复用的本地 CI/CD 入口：
+当前仓库已经补齐几条可复用的本地 CI/CD 入口：
 
 ```powershell
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:prepare -- --tag 0.1.8"
-pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:prepare-local -- --tag 0.1.8"
-pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 release:prepare-remote -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 release:prepare -- --tag 0.1.8"
 pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 cicd:dispatch-workflow -- --workflow desktop-build.yml --ref main --input target=macos-universal --input request_id=manual --wait"
 ```
 
@@ -81,14 +80,16 @@ GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm 
 当前 release 相关 workflow 分工：
 
 - `ci.yml`：PR / `main` 的 lint、typecheck、test
-- `prepare-release.yml`：手动同步版本、校验、推送 release commit，并创建全新 tag
+- `create-release-tag.yml`：手动从远端 `main` 校验版本并创建全新 tag，不会回写 `main`
 - `release-desktop.yml`：监听新 tag，构建 Windows / macOS 并发布 GitHub Release
+- `desktop-build.yml`：手动桌面构建入口
+- `desktop-build-matrix.yml`：被 `desktop-build` 和 `release-desktop` 复用的内部构建矩阵
 
 当前本地 release / workflow 编排入口：
 
-- `pnpm release:prepare`：根据环境自动选择 dispatch 或本地手工发布路径
-- `pnpm release:prepare-local`：本地完成版本同步、校验、commit、push main、push tag；显式传 `--auto-commit` 时可先提交当前改动
-- `pnpm release:prepare-remote`：本地直接 dispatch `prepare-release.yml`，参数入口是 `--tag`
+- `pnpm release:prepare`：正式 release 的唯一本地 wrapper，只负责校验本地状态并 dispatch `create-release-tag.yml`
+- `pnpm release:sync-version`：为 release PR 同步四个版本文件
+- `pnpm release:preflight`：本地或 CI 校验目标 tag 与四个版本文件是否一致
 - `pnpm cicd:dispatch-workflow`：通用 GitHub Actions `workflow_dispatch` 入口，不依赖 `gh`
 - `pnpm release:prepare`、`pnpm cicd:dispatch-workflow`、`pnpm tauri:build:macos:remote`、`pnpm release:publish` 都支持按仓库名自动发现专属 token
 - 通用流程说明见：`docsforcodex/local-cicd-orchestration.md`
@@ -96,11 +97,13 @@ GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm 
 正式发布约定：
 
 - Release tag 使用无 `v` 前缀的语义化版本，例如 `0.1.2` 或 `0.1.2-beta.1`
-- 推 tag 前先运行 `pnpm release:sync-version -- --tag <tag>`，统一根工作区、桌面前端、Tauri 配置与 Cargo 版本
-- 正式推 tag 前先运行 `pnpm release:preflight -- --tag <tag>`，确保根工作区、桌面前端、Tauri 配置与 Cargo 版本一致
+- 正式发布前，先在 release PR 中运行 `pnpm release:sync-version -- --tag <tag>`，统一根工作区、桌面前端、Tauri 配置与 Cargo 版本
+- release PR 合入 `main` 后，再运行 `pnpm release:prepare -- --tag <tag>` 或手动触发 `create-release-tag.yml`
+- `pnpm release:prepare` 要求当前本地分支是 `main`、工作树干净，且 `origin/main` 与本地 `HEAD` 一致
+- 正式打 tag 前先运行 `pnpm release:preflight -- --tag <tag>`，确保根工作区、桌面前端、Tauri 配置与 Cargo 版本一致
 - 推送 tag 后，`release-desktop` workflow 会先执行 preflight；只有版本一致时才会继续构建 Windows/macOS 桌面包，并更新同名 GitHub Release 资产
-- 若不想手工执行“同步版本 -> 校验 -> push main -> 打 tag”，可以改用 `prepare-release.yml` 手动 workflow；它会先阻止复用已有 tag，再从 `main` 自动完成这套流程
-- `publish-release` job 当前使用 `gh run download "${{ github.run_id }}" --dir release-assets` 回收同一次 workflow run 的 artifact，再调用 `node scripts/release-publish.mjs --input release-assets ...` 通过 GitHub REST API 创建或更新 Release 并覆盖上传资产
+- 正式发布不再推荐本地 `git tag` + `git push origin <tag>` 作为默认路径，也不再提供本地 manual release fallback
+- `publish-release` job 当前使用 `actions/download-artifact@v5` 回收同一次 workflow run 的 artifact，再调用 `node scripts/release-publish.mjs --input release-assets ...` 通过 GitHub REST API 创建或更新 Release 并覆盖上传资产
 - 桌面 artifact 上传步骤已统一切到 `actions/upload-artifact@v6`，避免继续依赖 Node 20 JavaScript action runtime
 - 本地 Windows 开发机不保证预装 `gh`；如果要复现 `publish-release` job，优先跑仓库内 `release-publish` 测试与脚本，再按需补装 GitHub CLI
 

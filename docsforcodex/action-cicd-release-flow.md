@@ -2,19 +2,24 @@
 
 ## 目标
 
-这份文档描述当前仓库推荐的 GitHub Actions 发版链路，重点解决两个已真实发生过的问题：
+这份文档描述当前仓库推荐的 GitHub Actions 发版链路。核心目标是把 release 事实源固定到远端受保护分支，而不是开发者本地状态。
+
+当前仓库已经明确规避以下风险：
 
 - 四个版本文件未同步就先推 tag，导致 `release-desktop` 在 preflight 阶段失败
-- tag 已经存在但指向旧提交，后续只推 `main` 不会重新触发 release
+- 本地 `main` ahead 但远端 workflow 仍只读取旧的 `origin/main`
+- 旧 tag 指向旧提交，却被误以为“再 push 一次就会重新发版”
 
 ## 当前工作流分工
 
 - `/.github/workflows/ci.yml`
-  - PR 和 `main` 的基础校验
+  - PR、`merge_group`、`main` 的基础校验
   - 运行 `pnpm lint`、`pnpm typecheck`、`pnpm test`
-- `/.github/workflows/prepare-release.yml`
-  - 手动准备 release 的入口
-  - 自动同步版本、校验、提交到 `main`、创建全新 tag
+  - 额外运行 workflow/action 自动化护栏
+- `/.github/workflows/create-release-tag.yml`
+  - 正式 release tag 的唯一创建入口
+  - 只允许从远端 `main` 校验并创建新 tag
+  - 不会同步版本文件、不会 commit、不会 push `main`
 - `/.github/workflows/release-desktop.yml`
   - 监听新的语义化版本 tag
   - 构建 Windows x64 与 macOS Universal
@@ -22,99 +27,97 @@
 - `/.github/workflows/desktop-build.yml`
   - 与正式 release 解耦的手动桌面构建入口
   - 用于开发验证或远程 macOS 构建调度
+- `/.github/workflows/desktop-build-matrix.yml`
+  - 内部复用的构建矩阵 workflow
+  - 被 `desktop-build` 和 `release-desktop` 共用
 
 ## 推荐发版路径
 
-### 方式 A：推荐，使用 `prepare-release`
+### 方式 A：推荐，release PR + `create-release-tag`
 
 适用场景：
 
-- 希望减少手工命令
-- 希望避免忘记同步版本或误复用旧 tag
+- 正式发版
+- 希望让 `main` 和 tag 都以远端为事实源
+- 不希望 workflow 回写 `main`
 
 操作步骤：
 
-1. 在 GitHub Actions 中手动触发 `prepare-release`
-2. 输入一个此前未使用过的无 `v` 语义化版本，例如 `0.1.6`
-3. workflow 会自动：
-   - checkout `main`
-   - `pnpm release:sync-version -- --tag <tag>`
-   - `pnpm release:preflight -- --tag <tag>`
-   - `pnpm lint`
-   - `pnpm typecheck`
-   - `pnpm test`
-   - 若四个版本文件发生变化，则将同步结果提交到 `main`
-   - 若四个版本文件本来就已经对齐目标 tag，则跳过空 commit
-   - 创建并推送新的 tag
-4. tag push 之后，`release-desktop` 自动开始发布构建
-
-如果你是在本地触发这条路径，而机器上没有 `gh`，现在也可以直接用仓库内脚本经由 GitHub REST API dispatch：
+1. 在 release 分支或 release PR 中同步版本：
 
 ```powershell
-pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm release:prepare-remote -- --tag 0.1.8"
-```
-
-如果你有多个项目，推荐改用项目专属环境变量，而不是长期共用一个全局 token：
-
-```powershell
-pwsh.exe -NoProfile -Command "[System.Environment]::SetEnvironmentVariable('GITHUB_TOKEN_BG3CALCULATOR', '<github-token>', 'User')"
-pwsh.exe -NoProfile -Command "pnpm release:prepare-remote -- --tag 0.1.8"
-```
-
-### 方式 B：手工命令
-
-适用场景：
-
-- 本地需要完全掌控 commit / tag 节点
-- 暂时不方便使用 GitHub Actions 手动 dispatch
-
-标准命令：
-
-```powershell
-pwsh.exe -NoProfile -Command "pnpm release:sync-version -- --tag 0.1.6"
-pwsh.exe -NoProfile -Command "pnpm release:preflight -- --tag 0.1.6"
+pwsh.exe -NoProfile -Command "pnpm release:sync-version -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "pnpm release:preflight -- --tag 0.1.8"
 pwsh.exe -NoProfile -Command "pnpm lint"
 pwsh.exe -NoProfile -Command "pnpm typecheck"
 pwsh.exe -NoProfile -Command "pnpm test"
-pwsh.exe -NoProfile -Command "git push origin main"
-pwsh.exe -NoProfile -Command "git tag 0.1.6"
-pwsh.exe -NoProfile -Command "git push origin 0.1.6"
 ```
 
-### 方式 C：本地一键编排
+2. 合并 release PR 到 `main`。
+3. 手动触发 `create-release-tag`，输入一个此前未使用过的无 `v` 语义化版本，例如 `0.1.8`。
+4. workflow 会自动：
+   - checkout 当前远端 `main`
+   - 检查远端同名 tag 是否已存在
+   - 执行 `pnpm release:preflight -- --tag <tag>`
+   - 从当前 `main` HEAD 创建并推送新 tag
+5. tag push 之后，`release-desktop` 自动开始发布构建。
+
+### 方式 B：从本地调用官方 wrapper
 
 适用场景：
 
-- 希望在本地自动完成“同步版本 -> 校验 -> commit -> push main -> push tag”
-- 希望把这条顺序固化为可复用入口，而不是每次手敲多条命令
+- 你已经确认 release PR 已合并
+- 想从本地发起远端 tag 创建，但不依赖 `gh`
 
 标准命令：
 
 ```powershell
-pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
-pwsh.exe -NoProfile -Command "pnpm release:prepare-local -- --tag 0.1.8"
-pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8 --auto-commit"
+pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm release:prepare -- --tag 0.1.8"
 ```
 
-它会自动执行：
+或使用仓库专属 token：
 
-- 工作树/分支检查
-- tag 冲突检查
-- `pnpm release:sync-version -- --tag <tag>`
-- `pnpm release:preflight -- --tag <tag>`
-- `pnpm lint`
-- `pnpm typecheck`
-- `pnpm test`
-- 必要时提交版本文件
-- `git push origin main`
-- `git tag <tag>`
-- `git push origin <tag>`
+```powershell
+pwsh.exe -NoProfile -Command "[System.Environment]::SetEnvironmentVariable('GITHUB_TOKEN_BG3CALCULATOR', '<github-token>', 'User')"
+pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
+```
 
-补充说明：
+这条命令底层会：
 
-- `pnpm release:prepare` 会优先尝试 dispatch `prepare-release.yml`；只有本地缺少 token 或显式指定 `--mode manual` 时，才回退到本地手工发布路径
-- dispatch 路径只把“远端已存在同名 tag”视为阻塞条件；仅存在本地同名 tag 时，本地 wrapper 仍允许直接触发远端 workflow
-- dispatch / publish / 远程构建脚本现在都支持仓库专属 token 变量，例如 `GITHUB_TOKEN_BG3CALCULATOR`
+- 校验当前分支就是 `main`
+- 校验工作树干净
+- 校验 `origin/main` 与本地 `HEAD` 一致
+- 校验远端 tag 未复用
+- 用 GitHub REST API dispatch `create-release-tag.yml`
+
+它不会：
+
+- 本地 commit 改动
+- 推送 `main`
+- 本地创建 tag
+- 回退到 manual local release
+
+## 不再推荐的路径
+
+以下动作不再是仓库的正式发版流程：
+
+- `pnpm release:prepare-local`
+- `pnpm release:prepare-remote`
+- 手工 `git tag <tag>` + `git push origin <tag>` 作为默认发版方式
+- workflow 自动同步版本并回写 `main`
+
+如果本地 `main` ahead 或工作树不干净，先修复分支状态，再触发远端 workflow，不要试图绕过远端事实源。
+
+## 推荐的 GitHub 仓库设置
+
+以下设置不在仓库文件内，但应与当前自动化契约保持一致：
+
+- 为 `main` 启用 branch protection 或 ruleset
+- 禁止直接 push / force-push 到 `main`
+- 要求 PR、review、required checks、latest branch
+- 把 `lint-typecheck-test` 和 `automation-guardrails` 设为 required checks
+- 为正式 release tag 启用 tag protection 或 ruleset，禁止人工重写已发布 tag
+- 如后续接入签名或审批，再把正式发布 job 绑定到单独 environment
 
 ## 必须遵守的约束
 
@@ -125,6 +128,7 @@ pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8 --auto-commit"
   - `apps/desktop-tauri/package.json`
   - `apps/desktop-tauri/src-tauri/tauri.conf.json`
   - `apps/desktop-tauri/src-tauri/Cargo.toml`
+- 正式发版前，版本变更必须先经由 PR 合入 `main`
 
 ## 常见失败点
 
@@ -132,34 +136,55 @@ pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8 --auto-commit"
 
 症状：
 
-- tag 是 `0.1.5`
-- 四个文件还是 `0.1.4`
+- tag 是 `0.1.8`
+- 四个文件仍是旧版本
 
 处理：
 
-- 先执行 `pnpm release:sync-version -- --tag 0.1.5`
-- 再重新执行 `pnpm release:preflight -- --tag 0.1.5`
+- 先执行 `pnpm release:sync-version -- --tag 0.1.8`
+- 再执行 `pnpm release:preflight -- --tag 0.1.8`
+- 通过 PR 合入 `main` 后再触发 `create-release-tag`
 
-### 2. `git push origin <tag>` 没触发 release
+### 2. 本地 `main` ahead，但远端 workflow 仍然看不到新提交
 
 症状：
 
-- 输出 `Everything up-to-date`
+- 本地 `git status --branch` 显示 `ahead`
+- 直接执行 `pnpm release:prepare -- --tag <tag>` 失败，提示 `origin/main` 与本地 `HEAD` 不一致
+
+根因：
+
+- `workflow_dispatch` 运行的是远端 `ref` 对应的提交
+- 本地 ahead 并不会自动成为远端 workflow 的输入
+
+处理：
+
+- 先通过 PR 或正常分支合并把代码送上远端 `main`
+- 等本地与 `origin/main` 一致后，再触发 `create-release-tag`
+
+### 3. 旧 tag 再 push 一次，没有新的 release
+
+症状：
+
+- `git push origin <tag>` 输出 `Everything up-to-date`
 - GitHub Release 没更新
 
 根因：
 
-- 这个 tag 早就已经存在，而且可能还指向旧提交
+- `release-desktop` 只会在新的 tag push 时触发
 
 处理：
 
-- 优先改用一个全新的 tag，例如从 `0.1.5` 升到 `0.1.6`
-- 不推荐重打旧 tag，除非你明确接受改写 tag 的风险
+- 使用一个全新的版本 tag
+- 不推荐重打旧 tag，除非你明确接受改写历史的风险
 
 ## 相关文件
 
-- `/.github/workflows/prepare-release.yml`
+- `/.github/workflows/ci.yml`
+- `/.github/workflows/create-release-tag.yml`
 - `/.github/workflows/release-desktop.yml`
+- `/.github/workflows/desktop-build.yml`
+- `/.github/workflows/desktop-build-matrix.yml`
 - `/scripts/github-workflow-dispatch.mjs`
 - `/scripts/release-prepare.mjs`
 - `/scripts/release-sync-version.mjs`

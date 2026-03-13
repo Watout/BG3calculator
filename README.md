@@ -56,7 +56,7 @@ pwsh.exe -NoProfile -Command "pnpm test"
 
 CI 也会执行同一组根级校验命令。
 
-## 构建与发布
+## 构建
 
 本地桌面构建：
 
@@ -83,41 +83,57 @@ pwsh.exe -NoProfile -Command "$env:GH_TOKEN = '<github-token>'; pnpm tauri:build
 - `--dry-run` 只做本地校验与请求预览，不实际 dispatch workflow。
 - 当前默认只请求并下载 `macos-universal` 产物。
 
-### GitHub Actions
+## GitHub Actions
 
-- `ci`: 在 `pull_request` 和推送到 `main` 时运行 `lint`、`typecheck`、`test`。
-- `desktop-build`: 手动触发桌面构建，可用于开发测试与远程 macOS 构建脚本调用。
-- `release-desktop`: 推送无 `v` 前缀的语义化版本 tag，例如 `0.1.2` 或 `0.1.2-beta.1` 时，先校验版本一致性，再构建 Windows / macOS 安装包并更新同名 GitHub Release。
+- `ci`: 在 `pull_request`、`merge_group` 和推送到 `main` 时运行 `lint`、`typecheck`、`test`，并附带自动化脚本与 workflow 护栏检查。
+- `desktop-build`: 手动触发桌面构建，用于开发测试与远程 macOS 构建调度。
+- `create-release-tag`: 手动从远端 `main` 创建一个全新的 release tag，不会修改 `main`。
+- `release-desktop`: 监听新的语义化版本 tag，先校验版本一致性，再构建 Windows / macOS 安装包并更新同名 GitHub Release。
 
-正式发布前，先把下面 4 个文件的版本统一改成目标 tag：
+## 正式发布流程
 
-- `package.json`
-- `apps/desktop-tauri/package.json`
-- `apps/desktop-tauri/src-tauri/tauri.conf.json`
-- `apps/desktop-tauri/src-tauri/Cargo.toml`
+仓库当前采用严格治理模式：
 
-推荐直接用脚本同步版本：
+- 日常开发走 feature branch + PR。
+- `main` 是受保护的发布事实源，不作为本地手工发版工作台。
+- 正式 tag 只允许远端 workflow 创建。
+- 本地不再提供 `release:prepare-local` 这类正式发版入口。
+
+推荐步骤：
+
+1. 在 release 分支或 release PR 中同步下面 4 个文件的版本到目标 tag：
+   - `package.json`
+   - `apps/desktop-tauri/package.json`
+   - `apps/desktop-tauri/src-tauri/tauri.conf.json`
+   - `apps/desktop-tauri/src-tauri/Cargo.toml`
+2. 本地执行：
 
 ```powershell
 pwsh.exe -NoProfile -Command "pnpm release:sync-version -- --tag 0.1.2"
-```
-
-然后再做本地预检：
-
-```powershell
 pwsh.exe -NoProfile -Command "pnpm release:preflight -- --tag 0.1.2"
+pwsh.exe -NoProfile -Command "pnpm lint"
+pwsh.exe -NoProfile -Command "pnpm typecheck"
+pwsh.exe -NoProfile -Command "pnpm test"
 ```
 
-如果这里报版本不一致，`release-desktop` 会在 `verify-workspace` 阶段直接失败，Windows / macOS 构建和 Release 资产上传都不会开始。
-
-这件事已经在仓库里真实发生过一次：远端 `0.1.2` tag 确实触发了 `release-desktop`，但因为四个版本文件当时仍然是 `0.1.0`，workflow 在 preflight 被拦下，所以 GitHub Release 里看不到对应的 Windows / macOS 包。
-
-发布示例：
+3. 提 release PR 并合入 `main`。
+4. 合入后，用以下任一方式触发远端打 tag：
 
 ```powershell
-pwsh.exe -NoProfile -Command "git tag 0.1.2"
-pwsh.exe -NoProfile -Command "git push origin 0.1.2"
+pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.2"
 ```
+
+或直接在 GitHub Actions 页面手动运行 `create-release-tag`。
+
+5. 新 tag 推送后，`release-desktop` 自动构建并发布 GitHub Release。
+
+补充说明：
+
+- `pnpm release:prepare` 需要当前 shell 已配置 `GH_TOKEN` / `GITHUB_TOKEN`，或已保存项目专属 token 变量。
+- `pnpm release:prepare` 只会 dispatch 远端 workflow，不会本地 `commit/push/tag`。
+- 该命令要求当前本地 `main` 干净，且 `origin/main` 已经与本地 `HEAD` 一致；如果本地 ahead，先通过 PR/合并把代码送上远端。
+- release tag 必须是无 `v` 前缀的全新语义化版本，例如 `0.1.2` 或 `0.1.2-beta.1`。
+- 不要把 `git tag <tag>` + `git push origin <tag>` 当成默认发布路径；这条路径不再是仓库推荐流程。
 
 ## 当前状态
 
@@ -127,5 +143,6 @@ pwsh.exe -NoProfile -Command "git push origin 0.1.2"
 ## 参考文档
 
 - [代码边界与接口说明](./docsforcodex/overall.md)
+- [Action CI/CD 发版流程](./docsforcodex/action-cicd-release-flow.md)
 - [Codex 本地接入与 Release 流程](./docsforcodex/codex-local-setup-and-release.md)
 - [远程 macOS 构建背景](./docsforcodex/macos-remote-build-context.md)

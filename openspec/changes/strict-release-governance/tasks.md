@@ -1,0 +1,5 @@
+- [x] Replace the old prepare-release workflow with a remote-only `create-release-tag` workflow that validates release metadata and pushes a new tag without modifying `main`.
+- [x] Remove the local manual release fallback from package scripts and release helper code.
+- [x] Add no-push dispatch support so local release dispatch requires `origin/main` to already match local `HEAD`.
+- [x] Reuse one desktop build matrix workflow for both manual builds and release builds.
+- [x] Update README, `docsforcodex`, and release pitfall logs to describe the strict remote-governed release contract.

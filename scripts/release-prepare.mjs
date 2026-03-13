@@ -3,17 +3,14 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import {
-  parseGitHubRepository,
   getGitHubToken,
+  parseGitHubRepository,
   runCommand,
   runGitHubWorkflowDispatch
 } from "./github-workflow-dispatch.mjs";
 import { parseReleaseTag } from "./release-preflight.mjs";
-import {
-  runReleasePrepareLocal
-} from "./release-prepare-local.mjs";
 
-export const PREPARE_RELEASE_WORKFLOW = "prepare-release.yml";
+export const CREATE_RELEASE_TAG_WORKFLOW = "create-release-tag.yml";
 export const DEFAULT_RELEASE_BRANCH = "main";
 
 export class ReleasePrepareError extends Error {
@@ -25,14 +22,11 @@ export class ReleasePrepareError extends Error {
 
 export function parseCliArgs(argv) {
   const options = {
-    autoCommit: false,
-    commitMessage: null,
     dryRun: false,
     help: false,
-    mode: "auto",
+    tag: null,
     timeoutMinutes: 20,
-    wait: false,
-    tag: null
+    wait: false
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -53,31 +47,6 @@ export function parseCliArgs(argv) {
         throw new ReleasePrepareError("Missing value for --tag.");
       }
       options.tag = nextValue;
-      index += 1;
-      continue;
-    }
-
-    if (value === "--mode") {
-      const nextValue = argv[index + 1];
-      if (!nextValue || !["auto", "dispatch", "manual"].includes(nextValue)) {
-        throw new ReleasePrepareError('--mode must be one of "auto", "dispatch", or "manual".');
-      }
-      options.mode = nextValue;
-      index += 1;
-      continue;
-    }
-
-    if (value === "--auto-commit") {
-      options.autoCommit = true;
-      continue;
-    }
-
-    if (value === "--commit-message") {
-      const nextValue = argv[index + 1];
-      if (!nextValue) {
-        throw new ReleasePrepareError("Missing value for --commit-message.");
-      }
-      options.commitMessage = nextValue;
       index += 1;
       continue;
     }
@@ -114,39 +83,18 @@ export function printHelp() {
     "Usage: pnpm release:prepare -- --tag <tag> [options]",
     "",
     "Options:",
-    "  --tag <tag>                Release tag/version to prepare. Required.",
-    '  --mode <auto|dispatch|manual>  Auto-select workflow dispatch or local fallback. Defaults to auto.',
-    "  --auto-commit             Stage and commit all current changes before pushing/dispatching.",
-    "  --commit-message <text>    Commit message used with --auto-commit.",
-    "  --wait                     In dispatch mode, wait for prepare-release.yml to finish successfully.",
+    "  --tag <tag>                Release tag/version already merged into main. Required.",
+    "  --wait                     Wait for create-release-tag.yml to finish successfully.",
     "  --timeout-minutes <n>      Wait timeout in minutes. Defaults to 20.",
-    "  --dry-run                  Print the selected path without mutating git state or dispatching workflows.",
+    "  --dry-run                  Validate local/remote state and print the selected dispatch payload.",
     "  --help, -h                 Show this help text."
   ].join("\n");
 }
 
-export function selectReleasePath({ hasDispatchWorkflow, mode, token }) {
-  if (mode === "dispatch") {
-    return "dispatch";
-  }
-
-  if (mode === "manual") {
-    return "manual";
-  }
-
-  return hasDispatchWorkflow && Boolean(token) ? "dispatch" : "manual";
-}
-
-export function validateTagCollisionState({ localTagExists, path, remoteTagExists }) {
+export function validateTagCollisionState({ remoteTagExists }) {
   if (remoteTagExists) {
     throw new ReleasePrepareError(
       "Remote tag already exists. Bump to a brand new release version before continuing."
-    );
-  }
-
-  if (path === "manual" && localTagExists) {
-    throw new ReleasePrepareError(
-      "Local tag already exists. Delete the local tag or bump to a new release version before running the manual path."
     );
   }
 }
@@ -161,8 +109,6 @@ export async function workflowExists(cwd, workflowFile) {
 }
 
 export async function getTagCollisionState(commandRunner, cwd, tag) {
-  const localTagExists =
-    (await commandRunner("git", ["tag", "--list", tag], { cwd })).stdout.trim().length > 0;
   const remoteQuery = await commandRunner(
     "git",
     ["ls-remote", "--tags", "origin", `refs/tags/${tag}`],
@@ -176,7 +122,6 @@ export async function getTagCollisionState(commandRunner, cwd, tag) {
   }
 
   return {
-    localTagExists,
     remoteTagExists: remoteQuery.stdout.trim().length > 0
   };
 }
@@ -200,7 +145,13 @@ export async function runReleasePrepare({
   }
 
   parseReleaseTag(options.tag);
-  const hasDispatchWorkflow = await workflowExists(cwd, PREPARE_RELEASE_WORKFLOW);
+
+  if (!(await workflowExists(cwd, CREATE_RELEASE_TAG_WORKFLOW))) {
+    throw new ReleasePrepareError(
+      `${CREATE_RELEASE_TAG_WORKFLOW} is missing. release:prepare requires the remote release-tag workflow.`
+    );
+  }
+
   const remoteUrlResult = await (commandRunner ?? runCommand)(
     "git",
     ["remote", "get-url", "origin"],
@@ -216,97 +167,51 @@ export async function runReleasePrepare({
     }
   }
 
-  const selectedPath = selectReleasePath({
-    hasDispatchWorkflow,
-    mode: options.mode,
-    token: getGitHubToken(env, { repositorySlug })
-  });
-  const collisionState = await getTagCollisionState(
-    commandRunner ?? runCommand,
-    cwd,
-    options.tag
-  );
+  getGitHubToken(env, { repositorySlug });
+  const collisionState = await getTagCollisionState(commandRunner ?? runCommand, cwd, options.tag);
+  validateTagCollisionState(collisionState);
 
-  validateTagCollisionState({
-    ...collisionState,
-    path: selectedPath
-  });
+  const dispatchArgs = [
+    "--workflow",
+    CREATE_RELEASE_TAG_WORKFLOW,
+    "--ref",
+    DEFAULT_RELEASE_BRANCH,
+    "--input",
+    `tag=${options.tag}`,
+    "--no-push"
+  ];
 
-  if (selectedPath === "dispatch") {
-    if (!hasDispatchWorkflow) {
-      throw new ReleasePrepareError(
-        `${PREPARE_RELEASE_WORKFLOW} is missing. Dispatch mode is unavailable in this repository.`
-      );
-    }
-
-    const dispatchArgs = [
-      "--workflow",
-      PREPARE_RELEASE_WORKFLOW,
-      "--ref",
-      DEFAULT_RELEASE_BRANCH,
-      "--input",
-      `tag=${options.tag}`
-    ];
-
-    if (options.autoCommit) {
-      dispatchArgs.push("--auto-commit");
-    }
-    if (options.commitMessage) {
-      dispatchArgs.push("--commit-message", options.commitMessage);
-    }
-    if (options.wait) {
-      dispatchArgs.push("--wait", "--require-success");
-    }
-    if (options.timeoutMinutes !== 20) {
-      dispatchArgs.push("--timeout-minutes", String(options.timeoutMinutes));
-    }
-    if (options.dryRun) {
-      dispatchArgs.push("--dry-run");
-    }
-
-    const dispatchResult = await runGitHubWorkflowDispatch({
-      argv: dispatchArgs,
-      commandRunner,
-      cwd,
-      env,
-      fetchImpl,
-      now,
-      sleep
-    });
-    const localTagWarning = collisionState.localTagExists
-      ? `Local tag ${options.tag} already exists, but dispatch mode only blocks remote tag reuse.`
-      : null;
-
-    return {
-      exitCode: dispatchResult.exitCode,
-      stdout:
-        [
-          `Selected path: dispatch`,
-          `Tag: ${options.tag}`,
-          localTagWarning,
-          dispatchResult.stdout.trimEnd(),
-          "prepare-release.yml will create and push the new tag, then release-desktop.yml will build from that tag."
-        ]
-          .filter(Boolean)
-          .join("\n") + "\n"
-    };
+  if (options.wait) {
+    dispatchArgs.push("--wait", "--require-success");
+  }
+  if (options.timeoutMinutes !== 20) {
+    dispatchArgs.push("--timeout-minutes", String(options.timeoutMinutes));
+  }
+  if (options.dryRun) {
+    dispatchArgs.push("--dry-run");
   }
 
-  const manualResult = await runReleasePrepareLocal({
-    argv: [
-      "--tag",
-      options.tag,
-      ...(options.autoCommit ? ["--auto-commit"] : []),
-      ...(options.commitMessage ? ["--commit-message", options.commitMessage] : []),
-      ...(options.dryRun ? ["--dry-run"] : [])
-    ],
+  const dispatchResult = await runGitHubWorkflowDispatch({
+    argv: dispatchArgs,
     commandRunner,
-    cwd
+    cwd,
+    env,
+    fetchImpl,
+    now,
+    sleep
   });
 
   return {
-    exitCode: manualResult.exitCode,
-    stdout: `Selected path: manual\nTag: ${options.tag}\n${manualResult.stdout}`
+    exitCode: dispatchResult.exitCode,
+    stdout:
+      [
+        "Release entry: remote-tag-workflow",
+        `Tag: ${options.tag}`,
+        dispatchResult.stdout.trimEnd(),
+        `${CREATE_RELEASE_TAG_WORKFLOW} will create and push the new tag from origin/main, then release-desktop.yml will build from that tag.`
+      ]
+        .filter(Boolean)
+        .join("\n") + "\n"
   };
 }
 

@@ -59,72 +59,11 @@ jobs:
         shell: pwsh
 
   build-desktop:
-    name: build-${{ matrix.name }}
     needs: verify
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: windows-x64
-            os: windows-latest
-            rust_targets: x86_64-pc-windows-msvc
-            build_command: pnpm tauri:build:windows
-            artifact_name: bg3calculator-windows-x64
-            artifact_path: apps/desktop-tauri/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**
-          - name: macos-universal
-            os: macos-latest
-            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
-            build_command: pnpm tauri:build:macos:universal
-            artifact_name: bg3calculator-macos-universal
-            artifact_path: apps/desktop-tauri/src-tauri/target/universal-apple-darwin/release/bundle/**
-
-    env:
-      CARGO_TERM_COLOR: always
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24.14.0
-          package-manager-cache: false
-
-      - name: Enable Corepack
-        run: corepack enable
-        shell: pwsh
-
-      - name: Activate pnpm
-        run: corepack prepare pnpm@10.32.1 --activate
-        shell: pwsh
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust_targets }}
-
-      - name: Cache Rust artifacts
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: apps/desktop-tauri/src-tauri -> target
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        shell: pwsh
-
-      - name: Build desktop app
-        run: ${{ matrix.build_command }}
-        shell: pwsh
-
-      - name: Upload desktop bundles
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ matrix.artifact_name }}
-          if-no-files-found: error
-          compression-level: 0
-          path: ${{ matrix.artifact_path }}
+    uses: ./.github/workflows/desktop-build-matrix.yml
+    with:
+      target: all
+    secrets: inherit
 
   publish-release:
     name: publish-release
@@ -144,10 +83,11 @@ jobs:
           package-manager-cache: false
 
       - name: Download bundled artifacts
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh run download "${{ github.run_id }}" --dir release-assets
-        shell: pwsh
+        uses: actions/download-artifact@v5
+        with:
+          merge-multiple: false
+          path: release-assets
+          pattern: bg3calculator-*
 
       - name: Publish GitHub release
         env:

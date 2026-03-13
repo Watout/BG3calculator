@@ -2,26 +2,28 @@
 
 ## ADDED Requirements
 
-### Requirement: Local release orchestration must encode the repository-safe publish sequence
+### Requirement: Local release orchestration must hand off to remote release automation
 
-The repository MUST provide a local release orchestration command that validates release metadata, runs workspace verification, commits required version-file changes, pushes the release branch, and pushes a brand new tag.
+The repository MUST provide a local release orchestration command that validates local/remote state and dispatches the remote release-tag workflow through the GitHub REST API. It MUST NOT perform a formal local manual release.
 
-#### Scenario: Local release preparation succeeds
+#### Scenario: Local release preparation dispatches remote automation
 
-- **GIVEN** the working tree is clean
+- **GIVEN** the local branch is `main`
+- **AND** the working tree is clean
+- **AND** `origin/main` already matches local `HEAD`
 - **AND** the requested release tag is a new valid semantic version
 - **WHEN** the local release orchestration command runs
-- **THEN** it synchronizes release metadata
-- **AND** it runs preflight and workspace verification
-- **AND** it commits version-file changes when needed
-- **AND** it pushes the release branch before pushing the new tag
+- **THEN** it dispatches the remote release-tag workflow
+- **AND** it does not create a local tag
+- **AND** it does not push `main`
 
-#### Scenario: Local release preparation refuses reused tags
+#### Scenario: Local release preparation refuses remote drift
 
-- **GIVEN** the requested release tag already exists locally or remotely
+- **GIVEN** the requested release tag is valid
+- **AND** local `HEAD` does not match `origin/main`
 - **WHEN** the local release orchestration command runs
-- **THEN** it fails before mutating git state
-- **AND** it tells the operator to bump to a new version
+- **THEN** it fails before dispatching
+- **AND** it tells the operator to synchronize remote `main` first
 
 ### Requirement: Local workflow dispatch must not depend on GitHub CLI
 

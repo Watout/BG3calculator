@@ -2,6 +2,7 @@ name: ci
 
 on:
   pull_request:
+  merge_group:
   push:
     branches:
       - main
@@ -53,4 +54,46 @@ jobs:
 
       - name: Test workspace
         run: pnpm test
+        shell: pwsh
+
+  automation-guardrails:
+    name: automation-guardrails
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: corepack enable
+        shell: pwsh
+
+      - name: Activate pnpm
+        run: corepack prepare pnpm@10.32.1 --activate
+        shell: pwsh
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        shell: pwsh
+
+      - name: Lint GitHub Actions workflows
+        uses: rhysd/actionlint@v1
+
+      - name: Run automation script tests
+        run: >
+          pnpm exec vitest run
+          scripts/github-workflow-dispatch.test.ts
+          scripts/release-collect-assets.test.ts
+          scripts/release-preflight.test.ts
+          scripts/release-prepare.test.ts
+          scripts/release-publish.test.ts
+          scripts/release-sync-version.test.ts
+          scripts/tauri-remote-macos-build.test.ts
+          --config vitest.config.ts
         shell: pwsh
