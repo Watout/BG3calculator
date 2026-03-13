@@ -152,7 +152,8 @@ pwsh.exe -NoProfile -Command "git push origin 0.1.2"
    - 运行 `pnpm release:sync-version -- --tag <tag>`
    - 运行 `pnpm release:preflight -- --tag <tag>`
    - 运行 `pnpm lint`、`pnpm typecheck`、`pnpm test`
-   - 提交四个版本文件的同步改动到 `main`
+   - 若四个版本文件发生变化，则提交同步改动到 `main`
+   - 若四个版本文件本来就已经对齐目标 tag，则跳过空 commit
    - 创建并推送一个全新的 release tag
 
 随后 `release-desktop` 会因为这个新 tag 自动触发。

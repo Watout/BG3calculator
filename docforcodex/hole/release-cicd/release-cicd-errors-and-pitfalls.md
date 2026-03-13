@@ -257,6 +257,35 @@ Everything up-to-date
 - `git rev-parse 0.1.5` 与 `git rev-parse HEAD` 不一致时，说明 tag 仍指向旧提交
 - 推送一个全新的 tag 后，`release-desktop` 才会创建新的 workflow run
 
+2026-03-13 在新增 `prepare-release.yml` 时还确认了一个 PowerShell workflow 细节坑点：
+
+- 原始写法试图用 `if (git diff --cached --quiet) { ... } else { ... }` 判断是否存在 staged 改动
+- 但在 `pwsh` 中，native command 放进 `if (...)` 判断的是命令输出，而不是进程退出码
+- `git diff --cached --quiet` 无论“有改动”还是“无改动”都不会输出文本，因此这种写法会得到错误分支行为
+
+根因：
+
+- `prepare-release.yml` 使用 `shell: pwsh`
+- PowerShell 对原生命令的真假判断不等于 Bash 的 `$?` / 退出码语义
+- 如果继续用错误写法，workflow 可能在“版本本来已对齐”的情况下仍然尝试执行空 `git commit`，导致 prepare 阶段失败
+
+解决路径：
+
+- 先单独执行 `git diff --cached --quiet`
+- 再显式检查 `$LASTEXITCODE`
+  - `0` 代表没有 staged 改动，直接跳过 commit
+  - `1` 代表存在 staged 改动，执行 `git commit`
+  - 其他退出码按命令失败处理
+
+验证方式：
+
+- 版本文件已经是目标版本时，`prepare-release` 会输出“无需新增 commit”，但仍能继续 push `main` 并创建新 tag
+- 版本文件发生变化时，`prepare-release` 会正常创建 `chore: prepare release <tag>` commit
+
+相关文件：
+
+- `/.github/workflows/prepare-release.yml`
+
 ---
 
 ### 3. `release-desktop.yml` 的宽匹配依赖 preflight 兜底

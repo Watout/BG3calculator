@@ -43,7 +43,8 @@
    - `pnpm lint`
    - `pnpm typecheck`
    - `pnpm test`
-   - 将四个版本文件的同步结果提交到 `main`
+   - 若四个版本文件发生变化，则将同步结果提交到 `main`
+   - 若四个版本文件本来就已经对齐目标 tag，则跳过空 commit
    - 创建并推送新的 tag
 4. tag push 之后，`release-desktop` 自动开始发布构建
 
