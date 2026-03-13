@@ -50,6 +50,21 @@ interface CompactNumericDropdownProps {
   readonly value: string;
 }
 
+interface CompactSelectOption<T extends string = string> {
+  readonly label: string;
+  readonly value: T;
+}
+
+interface CompactSelectDropdownProps<T extends string = string> {
+  readonly ariaLabel: string;
+  readonly className?: string;
+  readonly disabled?: boolean;
+  readonly id?: string;
+  readonly onChange: (value: T) => void;
+  readonly options: readonly CompactSelectOption<T>[];
+  readonly value: T;
+}
+
 interface HistoryTextInputProps {
   readonly ariaLabel: string;
   readonly disabled?: boolean;
@@ -106,6 +121,25 @@ const HISTORY_VALIDATORS: Readonly<Record<HistoryKey, (value: string) => boolean
   mainHandAttackBonusExprText: isExpressionHistoryValue,
   offHandAttackBonusExprText: isExpressionHistoryValue,
 };
+
+const ADVANTAGE_STATE_OPTIONS = [
+  { value: "normal", label: "普通" },
+  { value: "advantage", label: "优势" },
+  { value: "disadvantage", label: "劣势" },
+] as const satisfies readonly CompactSelectOption<Entry["advantageState"]>[];
+
+const DAMAGE_MODIFIER_OPTIONS = [
+  { value: "normal", label: "普通" },
+  { value: "resistant", label: "抗性" },
+  { value: "vulnerable", label: "易伤" },
+  { value: "immune", label: "免疫" },
+] as const satisfies readonly CompactSelectOption<Entry["modifier"]>[];
+
+const DAMAGE_DICE_MODE_OPTIONS = [
+  { value: "normal", label: "普通" },
+  { value: "advantage", label: "多掷取高" },
+  { value: "disadvantage", label: "多掷取低" },
+] as const satisfies readonly CompactSelectOption<Entry["damageDiceMode"]>[];
 
 function formatPlainNumber(value: number): string {
   return `${value}`;
@@ -444,6 +478,67 @@ function CompactNumericDropdown({
               }}
             >
               {formatLabel(optionValue)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CompactSelectDropdown<T extends string>({
+  ariaLabel,
+  className,
+  disabled = false,
+  id,
+  onChange,
+  options,
+  value,
+}: CompactSelectDropdownProps<T>): JSX.Element {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useDismissiblePopup(isOpen, rootRef, () => setIsOpen(false));
+
+  const selectedOption = options.find((option) => option.value === value) ?? options[0];
+  const resolvedLabel = selectedOption?.label ?? `${value}`;
+  const resolvedClassName =
+    className === undefined ? "compact-dropdown" : `compact-dropdown ${className}`;
+
+  return (
+    <div ref={rootRef} className={resolvedClassName}>
+      <button
+        id={id}
+        type="button"
+        className="compact-select-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={() => setIsOpen((previous) => !previous)}
+      >
+        <span className="compact-select-value">{resolvedLabel}</span>
+        <span className="compact-select-icon" aria-hidden="true">
+          {isOpen ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {isOpen ? (
+        <div className="compact-dropdown-menu" role="listbox" aria-label={ariaLabel}>
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`compact-option${option.value === value ? " selected" : ""}`}
+              role="option"
+              aria-selected={option.value === value}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+            >
+              {option.label}
             </button>
           ))}
         </div>
@@ -915,22 +1010,18 @@ function App(): JSX.Element {
                     title="攻击掷骰状态"
                     info="普通/优势/劣势。优势取两次 d20 高值，劣势取低值。"
                   >
-                    <select
+                    <CompactSelectDropdown
                       id={advantageStateId}
+                      ariaLabel={`攻击项 ${index + 1} 攻击掷骰状态`}
+                      className="field-compact-dropdown"
+                      options={ADVANTAGE_STATE_OPTIONS}
                       value={entry.advantageState}
-                      onChange={(event) =>
+                      onChange={(nextValue) =>
                         updateEntry(entry.id, {
-                          advantageState: event.currentTarget.value as
-                            | "normal"
-                            | "advantage"
-                            | "disadvantage",
+                          advantageState: nextValue,
                         })
                       }
-                    >
-                      <option value="normal">普通</option>
-                      <option value="advantage">优势</option>
-                      <option value="disadvantage">劣势</option>
-                    </select>
+                    />
                   </FieldShell>
 
                   <FieldShell
@@ -938,24 +1029,18 @@ function App(): JSX.Element {
                     title="目标伤害修正"
                     info="普通/抗性/易伤/免疫。抗性减半向下取整，易伤翻倍，免疫为 0。"
                   >
-                    <select
+                    <CompactSelectDropdown
                       id={modifierId}
+                      ariaLabel={`攻击项 ${index + 1} 目标伤害修正`}
+                      className="field-compact-dropdown"
+                      options={DAMAGE_MODIFIER_OPTIONS}
                       value={entry.modifier}
-                      onChange={(event) =>
+                      onChange={(nextValue) =>
                         updateEntry(entry.id, {
-                          modifier: event.currentTarget.value as
-                            | "normal"
-                            | "resistant"
-                            | "vulnerable"
-                            | "immune",
+                          modifier: nextValue,
                         })
                       }
-                    >
-                      <option value="normal">普通</option>
-                      <option value="resistant">抗性</option>
-                      <option value="vulnerable">易伤</option>
-                      <option value="immune">免疫</option>
-                    </select>
+                    />
                   </FieldShell>
 
                   <FieldShell
@@ -963,22 +1048,18 @@ function App(): JSX.Element {
                     title="伤害骰模式"
                     info="普通/多掷取高/多掷取低。仅影响伤害骰结果，不影响攻击检定。"
                   >
-                    <select
+                    <CompactSelectDropdown
                       id={damageDiceModeId}
+                      ariaLabel={`攻击项 ${index + 1} 伤害骰模式`}
+                      className="field-compact-dropdown"
+                      options={DAMAGE_DICE_MODE_OPTIONS}
                       value={entry.damageDiceMode}
-                      onChange={(event) =>
+                      onChange={(nextValue) =>
                         updateEntry(entry.id, {
-                          damageDiceMode: event.currentTarget.value as
-                            | "normal"
-                            | "advantage"
-                            | "disadvantage",
+                          damageDiceMode: nextValue,
                         })
                       }
-                    >
-                      <option value="normal">普通</option>
-                      <option value="advantage">多掷取高</option>
-                      <option value="disadvantage">多掷取低</option>
-                    </select>
+                    />
                   </FieldShell>
 
                   {isNormalDamageMode ? (

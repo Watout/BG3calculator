@@ -47,6 +47,11 @@ ParserError:
 Missing variable name after foreach. The correct form is: foreach ($a in $b) {...}
 ```
 
+```text
+rg: regex parse error:
+error: unrecognized escape sequence
+```
+
 ## 根因
 
 ### 1. `ace-tool search_context`
@@ -59,6 +64,7 @@ Missing variable name after foreach. The correct form is: foreach ($a in $b) {..
 - PowerShell 会优先解释 `|`、`$PWD.Path`、转义引号等语法。
 - 当 `rg` 正则或路径拼接直接塞进 `-Command "..."` 时，PowerShell 可能先把表达式拆成自己的 pipeline / 变量访问，再把残缺参数交给 `rg`。
 - 当前 Windows 环境里还会在命令退出阶段触发 WinGet 的 command-not-found 反馈逻辑；当 pipeline 提前结束时，偶发会附带一段 `PipelineStoppedException`，干扰日志判断。
+- 即使绕过了 PowerShell 本身的语法解析，`rg` 查询如果包含被错误转义的 `\"`、`\|` 片段，也可能直接在 ripgrep 层报 `regex parse error: unrecognized escape sequence`。
 
 ### 3. `pwsh.exe -NoProfile -Command` + 多个 `$` 局部变量脚本
 
@@ -84,6 +90,7 @@ Missing variable name after foreach. The correct form is: foreach ($a in $b) {..
 
 - 避免把复杂正则直接塞进 `pwsh.exe -Command "..."`。
 - 优先拆成多条简单查询，例如分别搜 `criticalThreshold`、`mainHand`、`offHand`、`executionCount`。
+- 如果只是想同时匹配多个字面量，优先改成多次 `rg -n keyword path`，不要在 `pwsh.exe` 里硬塞带引号和反斜杠的组合正则。
 - 需要路径长度或字符串插值时，优先使用显式变量或更简单的 PowerShell 写法，不直接拼 `$PWD.Path.Length` 一类表达式。
 - 看到结尾附带的 `PipelineStoppedException` 时，先判断前面的实际查询结果是否已经成功输出，不要把它误判成业务代码错误。
 - 需要读特定代码片段时，优先用 `rg -n -C <context>`、`Get-Content ... | Select-Object -Skip <n> -First <m>` 这类不依赖多个 `$` 变量的短命令，而不是把一整段 PowerShell 小脚本塞进 `-Command`。

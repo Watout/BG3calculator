@@ -86,7 +86,7 @@ describe("App attack entry controls", (): void => {
     expect(screen.queryByRole("listbox", { name: "攻击项 1 主手执行次数" })).toBeNull();
   });
 
-  it("keeps off-hand repeat visible, uses compact dropdowns for template repeat and critical threshold, and removes attack bonus extra dropdowns", (): void => {
+  it("keeps off-hand repeat visible, uses compact dropdowns for attack-state fields, template repeat, and critical threshold, and removes attack bonus extra dropdowns", (): void => {
     render(<App />);
 
     const mainHandField = getFieldShellByInputLabel("攻击项 1 主手伤害骰表达式");
@@ -107,18 +107,45 @@ describe("App attack entry controls", (): void => {
     expect(screen.getByRole("button", { name: "攻击项 1 副手执行次数" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "模板执行次数" })).not.toBeNull();
     expect(screen.queryByRole("combobox", { name: "模板执行次数" })).toBeNull();
+    expect(screen.getByRole("button", { name: "攻击项 1 攻击掷骰状态" })).not.toBeNull();
+    expect(screen.queryByRole("combobox", { name: "攻击项 1 攻击掷骰状态" })).toBeNull();
+    expect(screen.getByRole("button", { name: "攻击项 1 目标伤害修正" })).not.toBeNull();
+    expect(screen.queryByRole("combobox", { name: "攻击项 1 目标伤害修正" })).toBeNull();
+    expect(screen.getByRole("button", { name: "攻击项 1 伤害骰模式" })).not.toBeNull();
+    expect(screen.queryByRole("combobox", { name: "攻击项 1 伤害骰模式" })).toBeNull();
     expect(screen.getByRole("button", { name: "攻击项 1 重击阈值" })).not.toBeNull();
     expect(screen.queryByRole("combobox", { name: "攻击项 1 重击阈值" })).toBeNull();
     expect(mainAttackBonusField.querySelector(".compact-dropdown")).toBeNull();
     expect(within(offHandField).getByText("副手执行")).not.toBeNull();
   });
 
-  it("slides the template repeat and critical threshold dropdown windows", (): void => {
+  it("uses compact dropdown interactions for attack state, modifier, damage mode, template repeat, and critical threshold", (): void => {
     render(<App />);
+
+    const advantageTrigger = screen.getByRole("button", { name: "攻击项 1 攻击掷骰状态" });
+    fireEvent.click(advantageTrigger);
+    let listbox = screen.getByRole("listbox", { name: "攻击项 1 攻击掷骰状态" });
+    fireEvent.click(within(listbox).getByRole("option", { name: "劣势" }));
+    expect(screen.queryByRole("listbox", { name: "攻击项 1 攻击掷骰状态" })).toBeNull();
+    expect(advantageTrigger.textContent).toContain("劣势");
+
+    const modifierTrigger = screen.getByRole("button", { name: "攻击项 1 目标伤害修正" });
+    fireEvent.click(modifierTrigger);
+    listbox = screen.getByRole("listbox", { name: "攻击项 1 目标伤害修正" });
+    fireEvent.click(within(listbox).getByRole("option", { name: "免疫" }));
+    expect(screen.queryByRole("listbox", { name: "攻击项 1 目标伤害修正" })).toBeNull();
+    expect(modifierTrigger.textContent).toContain("免疫");
+
+    const damageModeTrigger = screen.getByRole("button", { name: "攻击项 1 伤害骰模式" });
+    fireEvent.click(damageModeTrigger);
+    listbox = screen.getByRole("listbox", { name: "攻击项 1 伤害骰模式" });
+    fireEvent.click(within(listbox).getByRole("option", { name: "多掷取高" }));
+    expect(screen.queryByRole("listbox", { name: "攻击项 1 伤害骰模式" })).toBeNull();
+    expect(damageModeTrigger.textContent).toContain("多掷取高");
 
     const planTrigger = screen.getByRole("button", { name: "模板执行次数" });
     fireEvent.click(planTrigger);
-    let listbox = screen.getByRole("listbox", { name: "模板执行次数" });
+    listbox = screen.getByRole("listbox", { name: "模板执行次数" });
     fireEvent.wheel(listbox, { deltaY: 720 });
     listbox = screen.getByRole("listbox", { name: "模板执行次数" });
     fireEvent.click(within(listbox).getByRole("option", { name: "25" }));
