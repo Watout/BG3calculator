@@ -1,5 +1,5 @@
 :root {
-  --bg-paper: #0b0f13;
+  --bg-paper: #000000;
   --bg-ink: #e5edf6;
   --card: rgba(20, 27, 35, 0.92);
   --card-border: rgba(93, 120, 148, 0.28);
@@ -15,10 +15,7 @@
   --label-inline-control-height: 24px;
   font-family: "IBM Plex Sans", "Source Sans 3", sans-serif;
   color: var(--bg-ink);
-  background:
-    radial-gradient(circle at 12% 8%, rgba(58, 108, 156, 0.35), transparent 46%),
-    radial-gradient(circle at 86% 86%, rgba(40, 67, 102, 0.26), transparent 50%),
-    linear-gradient(155deg, #0a0f14 0%, #0f1720 46%, #111c27 100%);
+  background: var(--bg-paper);
 }
 
 html {
@@ -57,6 +54,7 @@ body {
   margin: 0;
   min-height: 100vh;
   color: inherit;
+  background: var(--bg-paper);
 }
 
 #root {

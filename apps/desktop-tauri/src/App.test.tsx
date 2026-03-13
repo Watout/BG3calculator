@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import App from "./App";
@@ -19,6 +21,16 @@ function getFieldShellByInputLabel(ariaLabel: string): HTMLElement {
 }
 
 describe("App attack entry controls", (): void => {
+  it("keeps the boot splash and runtime background pure black", (): void => {
+    const appCss = readFileSync(join(process.cwd(), "apps/desktop-tauri/src/App.css"), "utf8");
+    const indexHtml = readFileSync(join(process.cwd(), "apps/desktop-tauri/index.html"), "utf8");
+
+    expect(appCss).toContain("--bg-paper: #000000;");
+    expect(appCss).toContain("background: var(--bg-paper);");
+    expect(appCss).not.toContain("radial-gradient(");
+    expect(indexHtml).toContain("background: #000000;");
+  });
+
   it("shows tooltip only when hovering or focusing the info icon", (): void => {
     render(<App />);
 
