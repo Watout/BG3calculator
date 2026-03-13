@@ -67,12 +67,19 @@ GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm 
 
 - `bg3calculator-macos-universal`
 
+当前 release 相关 workflow 分工：
+
+- `ci.yml`：PR / `main` 的 lint、typecheck、test
+- `prepare-release.yml`：手动同步版本、校验、推送 release commit，并创建全新 tag
+- `release-desktop.yml`：监听新 tag，构建 Windows / macOS 并发布 GitHub Release
+
 正式发布约定：
 
 - Release tag 使用无 `v` 前缀的语义化版本，例如 `0.1.2` 或 `0.1.2-beta.1`
 - 推 tag 前先运行 `pnpm release:sync-version -- --tag <tag>`，统一根工作区、桌面前端、Tauri 配置与 Cargo 版本
 - 正式推 tag 前先运行 `pnpm release:preflight -- --tag <tag>`，确保根工作区、桌面前端、Tauri 配置与 Cargo 版本一致
 - 推送 tag 后，`release-desktop` workflow 会先执行 preflight；只有版本一致时才会继续构建 Windows/macOS 桌面包，并更新同名 GitHub Release 资产
+- 若不想手工执行“同步版本 -> 校验 -> push main -> 打 tag”，可以改用 `prepare-release.yml` 手动 workflow；它会先阻止复用已有 tag，再从 `main` 自动完成这套流程
 - `publish-release` job 当前使用 `gh run download "${{ github.run_id }}" --dir release-assets` 回收同一次 workflow run 的 artifact，再调用 `node scripts/release-publish.mjs --input release-assets ...` 通过 GitHub REST API 创建或更新 Release 并覆盖上传资产
 - 桌面 artifact 上传步骤已统一切到 `actions/upload-artifact@v6`，避免继续依赖 Node 20 JavaScript action runtime
 - 本地 Windows 开发机不保证预装 `gh`；如果要复现 `publish-release` job，优先跑仓库内 `release-publish` 测试与脚本，再按需补装 GitHub CLI

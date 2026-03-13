@@ -93,6 +93,9 @@ pwsh.exe -NoProfile -Command "pnpm test"
 - `/.github/workflows/ci.yml`
   - 触发：`pull_request`、推送到 `main`
   - 作用：运行 `pnpm lint`、`pnpm typecheck`、`pnpm test`
+- `/.github/workflows/prepare-release.yml`
+  - 触发：`workflow_dispatch`
+  - 作用：从 `main` checkout 最新代码，自动同步四个 release 版本文件，执行 `release:preflight` 与根级校验，然后推送 release commit 并创建一个全新的语义化版本 tag
 - `/.github/workflows/release-desktop.yml`
   - 触发：推送无 `v` 前缀的语义化 tag，例如 `0.1.2` 或 `0.1.2-beta.1`
   - 作用：先做 release tag 与版本文件一致性校验，再分别构建 Windows 和 macOS Universal 安装包，并更新同名 GitHub Release
@@ -140,6 +143,20 @@ pwsh.exe -NoProfile -Command "git tag 0.1.2"
 pwsh.exe -NoProfile -Command "git push origin 0.1.2"
 ```
 
+如果你不想手工重复“同步版本 -> 校验 -> 提交 -> 打 tag”这套流程，优先使用 GitHub Actions 里的 `prepare-release`：
+
+1. 打开 Actions 页面里的 `prepare-release`
+2. 输入一个此前从未使用过的无 `v` 语义化版本，例如 `0.1.6`
+3. workflow 会自动：
+   - checkout `main`
+   - 运行 `pnpm release:sync-version -- --tag <tag>`
+   - 运行 `pnpm release:preflight -- --tag <tag>`
+   - 运行 `pnpm lint`、`pnpm typecheck`、`pnpm test`
+   - 提交四个版本文件的同步改动到 `main`
+   - 创建并推送一个全新的 release tag
+
+随后 `release-desktop` 会因为这个新 tag 自动触发。
+
 如果 preflight 因版本不一致而失败，`release-desktop` 会停在 `verify-workspace`，不会继续构建 Windows / macOS 包，也不会更新 GitHub Release 资产。
 
 已确认的真实案例：
@@ -147,6 +164,15 @@ pwsh.exe -NoProfile -Command "git push origin 0.1.2"
 - 远端 `0.1.2` tag 的确触发过 `release-desktop`
 - 但 tag 对应提交里的四个版本文件仍然是 `0.1.0`
 - 因此 workflow 在 preflight 直接失败，GitHub Release 中没有出现 `0.1.2` 的 Windows / macOS 资产
+
+另一个高频坑点是“tag 已经存在，但它指向的是旧提交”：
+
+- `release-desktop` 是“推新 tag 触发”，不是“推 main 触发”
+- 如果某个 tag（例如 `0.1.5`）已经存在并指向旧提交，那么后续即使你把版本文件修好了、推了新的 `main` 提交，也不会自动补跑 release
+- 再次执行 `git push origin 0.1.5` 只会得到 `Everything up-to-date`
+- 这时要么创建一个全新的 tag（推荐，例如 `0.1.6`），要么显式删除并重打旧 tag（风险更高，不推荐）
+
+新的 `prepare-release` workflow 会先检查同名 tag 是否已经存在；存在时直接失败，不会继续复用旧 tag。
 
 随后 GitHub Actions 会自动：
 
@@ -171,5 +197,6 @@ pwsh.exe -NoProfile -Command "git push origin 0.1.2"
 - 根工作区脚本：`/package.json`
 - 手动桌面构建：`/.github/workflows/desktop-build.yml`
 - 常规 CI：`/.github/workflows/ci.yml`
+- 手动准备 release：`/.github/workflows/prepare-release.yml`
 - 自动发布：`/.github/workflows/release-desktop.yml`
 - Tauri 打包配置：`/apps/desktop-tauri/src-tauri/tauri.conf.json`

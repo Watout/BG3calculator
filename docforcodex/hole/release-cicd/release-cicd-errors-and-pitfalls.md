@@ -225,6 +225,38 @@ Release version mismatch detected for tag 0.1.5:
 - 四个版本文件全部同步到 `0.1.5`
 - `release:preflight` 可以继续往后通过，不再停在版本一致性校验
 
+2026-03-13 同一天又确认了另一个相邻坑点：
+
+- `main` 已经推到包含正确版本文件的新提交
+- 但远端同名 tag `0.1.5` 早就已经存在，并且仍然指向旧提交
+- 这时执行：
+
+```text
+git tag 0.1.5
+fatal: tag '0.1.5' already exists
+
+git push origin 0.1.5
+Everything up-to-date
+```
+
+根因：
+
+- `release-desktop` 只会在“新的 tag push”时触发
+- 已存在的 tag 再次 push 不会重新触发 workflow
+- 所以“先修 main，再重复 push 同名旧 tag”不会产生新的 release run
+
+解决路径：
+
+- 推荐直接使用一个全新的版本 tag，例如 `0.1.6`
+- 或者改用新的手动 workflow `prepare-release.yml`，让 workflow 先检查 tag 是否已存在，再自动同步版本、提交到 `main`、创建新 tag
+- 只有在明确接受重写 tag 风险时，才考虑删除并重打旧 tag
+
+验证方式：
+
+- `git ls-remote --tags origin 0.1.5` 能看到远端旧 tag 已存在
+- `git rev-parse 0.1.5` 与 `git rev-parse HEAD` 不一致时，说明 tag 仍指向旧提交
+- 推送一个全新的 tag 后，`release-desktop` 才会创建新的 workflow run
+
 ---
 
 ### 3. `release-desktop.yml` 的宽匹配依赖 preflight 兜底
