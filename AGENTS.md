@@ -8,6 +8,9 @@ use pnpm 而不是 npm 来进行包管理，如果已经有相关的了，迁移
 - 日常开发默认走 feature branch + PR；不要把本地 `main` 当作日常开发工作台。
 - 正式 release tag 只允许通过远端 GitHub Actions workflow `create-release-tag.yml` 创建。
 - `pnpm release:prepare -- --tag <tag>` 是正式 release 的唯一本地入口；它只允许做本地校验并 dispatch 远端 workflow。
+- GitHub 仓库级保护规则默认通过 `pnpm cicd:apply-github-guardrails` 落地；不要把 `main` / tag 保护只写在文档里而不真正下发到仓库设置。
+- `pnpm cicd:apply-github-guardrails` 需要带仓库 `Administration` 权限的 GitHub token，优先使用 `GH_ADMIN_TOKEN` / `GITHUB_ADMIN_TOKEN` 或仓库专属变量（例如 `GITHUB_ADMIN_TOKEN_BG3CALCULATOR`）。
+- release tag 保护规则必须保留 GitHub Actions integration bypass（当前 App id `15368`，slug `github-actions`），否则 `create-release-tag.yml` 会被 tag protection 反向拦截。
 - 禁止恢复或新增本地正式发版 fallback，例如：
   - `release:prepare-local`
   - 本地 `commit/push main/tag`

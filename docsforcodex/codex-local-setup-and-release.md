@@ -15,6 +15,7 @@
 - 根级校验入口：`pnpm lint`、`pnpm typecheck`、`pnpm test`
 - 手动桌面构建：`.github/workflows/desktop-build.yml`
 - 本地 workflow dispatch 入口：`pnpm cicd:dispatch-workflow`
+- 仓库治理下发入口：`pnpm cicd:apply-github-guardrails`
 - 统一 release 编排入口：`pnpm release:prepare`
 - 正式发布 tag 入口：`.github/workflows/create-release-tag.yml`
 
@@ -92,6 +93,7 @@ pwsh.exe -NoProfile -Command "pnpm release:sync-version -- --tag 0.1.8"
 pwsh.exe -NoProfile -Command "pnpm release:preflight -- --tag 0.1.8"
 pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
 pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm cicd:dispatch-workflow -- --workflow desktop-build.yml --ref main --input target=macos-universal --input request_id=manual --wait"
+pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; pnpm cicd:apply-github-guardrails"
 ```
 
 如果你同时维护多个 GitHub 项目，推荐不要长期共用一个全局 token，而是为每个仓库单独保存项目专属环境变量。当前仓库已经支持自动识别：
@@ -198,6 +200,7 @@ pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
 - 根工作区脚本：`/package.json`
 - 通用本地 CI/CD 编排说明：`/docsforcodex/local-cicd-orchestration.md`
 - 通用 workflow dispatch：`/scripts/github-workflow-dispatch.mjs`
+- 仓库治理下发：`/scripts/github-repo-guardrails.mjs`
 - 统一 release wrapper：`/scripts/release-prepare.mjs`
 - 手动桌面构建：`/.github/workflows/desktop-build.yml`
 - 复用构建矩阵：`/.github/workflows/desktop-build-matrix.yml`

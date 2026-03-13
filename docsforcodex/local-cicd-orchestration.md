@@ -145,3 +145,17 @@ pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN = '<github-token>'; pnpm tauri:b
 - 直接执行本地脚本
 - 直接 dispatch workflow
 - 或者先通过 PR/merge 把事实送上远端，再由远端继续 release / deploy
+
+## 首次治理初始化
+
+如果是首次把仓库切到“远端受保护主分支 + 远端创建 release tag”的模式，先补 GitHub 仓库保护规则：
+
+```powershell
+pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; pnpm cicd:apply-github-guardrails"
+```
+
+补充说明：
+
+- 该命令需要仓库 `Administration: Read and write` 权限。
+- 它会更新 `main` 的 branch protection，并创建或更新 release tag ruleset。
+- release tag ruleset 默认保留 `github-actions` App bypass，避免 `create-release-tag.yml` 被自己触发的 tag protection 拦截。

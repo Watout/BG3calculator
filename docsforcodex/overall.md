@@ -34,6 +34,8 @@ pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:preflight -- -
 ```powershell
 pwsh.exe -NoProfile -Command "& corepack.cmd pnpm@10.32.1 release:prepare -- --tag 0.1.8"
 pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 release:prepare -- --tag 0.1.8"
+pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; & corepack.cmd pnpm@10.32.1 cicd:apply-github-guardrails"
+pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; & corepack.cmd pnpm@10.32.1 cicd:apply-github-guardrails -- --dry-run"
 pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'; & corepack.cmd pnpm@10.32.1 cicd:dispatch-workflow -- --workflow desktop-build.yml --ref main --input target=macos-universal --input request_id=manual --wait"
 ```
 
@@ -54,6 +56,7 @@ pwsh.exe -NoProfile -Command "$env:GITHUB_TOKEN_BG3CALCULATOR = '<github-token>'
 说明：
 
 - `GH_TOKEN` / `GITHUB_TOKEN` 至少要能触发当前仓库的 GitHub Actions 并读取 artifact。
+- 仓库保护规则脚本额外支持 `GH_ADMIN_TOKEN` / `GITHUB_ADMIN_TOKEN` 以及仓库专属变量，例如 `GITHUB_ADMIN_TOKEN_BG3CALCULATOR`。
 - 现在也支持项目专属环境变量，例如 `GH_TOKEN_BG3CALCULATOR`、`GITHUB_TOKEN_BG3CALCULATOR`、`GH_TOKEN_WATOUT_BG3CALCULATOR`、`GITHUB_TOKEN_WATOUT_BG3CALCULATOR`。
 - 如果你同时维护多个仓库，优先给每个仓库单独创建 Fine-grained token，并保存到项目专属环境变量。
 - 远程 macOS 打包要求当前分支工作树干净，且 `origin/<branch>` 与本地 `HEAD` 一致；脚本会在 dispatch 前主动校验。
@@ -90,8 +93,10 @@ GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm 
 - `pnpm release:prepare`：正式 release 的唯一本地 wrapper，只负责校验本地状态并 dispatch `create-release-tag.yml`
 - `pnpm release:sync-version`：为 release PR 同步四个版本文件
 - `pnpm release:preflight`：本地或 CI 校验目标 tag 与四个版本文件是否一致
+- `pnpm cicd:apply-github-guardrails`：给 GitHub 仓库下发 `main` 保护和正式 release tag ruleset 的治理脚本
 - `pnpm cicd:dispatch-workflow`：通用 GitHub Actions `workflow_dispatch` 入口，不依赖 `gh`
 - `pnpm release:prepare`、`pnpm cicd:dispatch-workflow`、`pnpm tauri:build:macos:remote`、`pnpm release:publish` 都支持按仓库名自动发现专属 token
+- `pnpm cicd:apply-github-guardrails` 优先读取 `GH_ADMIN_TOKEN` / `GITHUB_ADMIN_TOKEN`，也支持按仓库名自动发现 admin token
 - 通用流程说明见：`docsforcodex/local-cicd-orchestration.md`
 
 正式发布约定：
@@ -100,9 +105,11 @@ GitHub Actions 手动触发 `desktop-build` 后可上传两份 artifact；`pnpm 
 - 正式发布前，先在 release PR 中运行 `pnpm release:sync-version -- --tag <tag>`，统一根工作区、桌面前端、Tauri 配置与 Cargo 版本
 - release PR 合入 `main` 后，再运行 `pnpm release:prepare -- --tag <tag>` 或手动触发 `create-release-tag.yml`
 - `pnpm release:prepare` 要求当前本地分支是 `main`、工作树干净，且 `origin/main` 与本地 `HEAD` 一致
+- 仓库治理初次落地或重建后，先运行 `pnpm cicd:apply-github-guardrails`，确保 `main` 保护和 release tag ruleset 与当前自动化契约一致
 - 正式打 tag 前先运行 `pnpm release:preflight -- --tag <tag>`，确保根工作区、桌面前端、Tauri 配置与 Cargo 版本一致
 - 推送 tag 后，`release-desktop` workflow 会先执行 preflight；只有版本一致时才会继续构建 Windows/macOS 桌面包，并更新同名 GitHub Release 资产
 - 正式发布不再推荐本地 `git tag` + `git push origin <tag>` 作为默认路径，也不再提供本地 manual release fallback
+- release tag protection 必须保留 `github-actions` App（id `15368`）的 bypass，否则 `create-release-tag.yml` 自己会被 tag ruleset 拦住
 - `publish-release` job 当前使用 `actions/download-artifact@v5` 回收同一次 workflow run 的 artifact，再调用 `node scripts/release-publish.mjs --input release-assets ...` 通过 GitHub REST API 创建或更新 Release 并覆盖上传资产
 - 桌面 artifact 上传步骤已统一切到 `actions/upload-artifact@v6`，避免继续依赖 Node 20 JavaScript action runtime
 - 本地 Windows 开发机不保证预装 `gh`；如果要复现 `publish-release` job，优先跑仓库内 `release-publish` 测试与脚本，再按需补装 GitHub CLI

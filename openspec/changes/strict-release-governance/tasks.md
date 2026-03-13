@@ -2,4 +2,5 @@
 - [x] Remove the local manual release fallback from package scripts and release helper code.
 - [x] Add no-push dispatch support so local release dispatch requires `origin/main` to already match local `HEAD`.
 - [x] Reuse one desktop build matrix workflow for both manual builds and release builds.
+- [x] Add a repository guardrails script so `main` protection and release tag rules can be applied from code with an admin token.
 - [x] Update README, `docsforcodex`, and release pitfall logs to describe the strict remote-governed release contract.

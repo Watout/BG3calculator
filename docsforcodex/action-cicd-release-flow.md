@@ -110,14 +110,27 @@ pwsh.exe -NoProfile -Command "pnpm release:prepare -- --tag 0.1.8"
 
 ## 推荐的 GitHub 仓库设置
 
-以下设置不在仓库文件内，但应与当前自动化契约保持一致：
+优先使用仓库脚本下发这些设置，而不是手工去 GitHub settings 里逐项点击：
+
+```powershell
+pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; pnpm cicd:apply-github-guardrails"
+pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; pnpm cicd:apply-github-guardrails -- --dry-run"
+```
+
+脚本会把下面这些约束应用到 GitHub 仓库侧：
 
 - 为 `main` 启用 branch protection 或 ruleset
 - 禁止直接 push / force-push 到 `main`
 - 要求 PR、review、required checks、latest branch
 - 把 `lint-typecheck-test` 和 `automation-guardrails` 设为 required checks
-- 为正式 release tag 启用 tag protection 或 ruleset，禁止人工重写已发布 tag
+- 为正式 release tag 启用 tag protection 或 ruleset，禁止人工直接创建、改写或删除已发布 tag
+- release tag ruleset 必须给 `github-actions` App（id `15368`）保留 bypass，否则 `create-release-tag.yml` 无法推 tag
 - 如后续接入签名或审批，再把正式发布 job 绑定到单独 environment
+
+注意：
+
+- 这里需要的是带仓库 `Administration: Read and write` 权限的 token。
+- 只够 dispatch workflow 的普通 `GH_TOKEN` / `GITHUB_TOKEN` 不一定能修改 branch protection 或 ruleset。
 
 ## 必须遵守的约束
 

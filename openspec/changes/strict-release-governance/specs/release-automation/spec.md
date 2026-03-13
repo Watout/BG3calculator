@@ -24,6 +24,18 @@ The repository MUST treat the remote `main` branch as the only formal release so
 - **THEN** `release:preflight` fails
 - **AND** no new tag is created
 
+### Requirement: Repository guardrails must be reproducible from code
+
+The repository MUST provide an automated way to apply the GitHub-side branch and tag protections that enforce the release contract.
+
+#### Scenario: Guardrails script applies branch protection and tag rules
+
+- **GIVEN** an operator has a GitHub token with repository Administration write permission
+- **WHEN** the operator runs `pnpm cicd:apply-github-guardrails`
+- **THEN** `main` branch protection is updated to require the repository CI checks
+- **AND** the release tag ruleset is created or updated
+- **AND** the release tag ruleset preserves a bypass for the `github-actions` integration so release automation can still push new tags
+
 ### Requirement: Local release entrypoints must not perform formal manual releases
 
 The repository MUST NOT expose a local formal release command that commits, pushes `main`, creates a release tag, or falls back to a local manual publish path.

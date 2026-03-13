@@ -828,6 +828,86 @@ Node.js 20 actions are deprecated. The following actions are running on Node.js 
 
 ---
 
+### 5. GitHub 仓库治理不是“代码改完就算完成”
+
+这次迁移里一个很容易忽略的现实是：
+
+- 仓库里的 workflow、脚本、文档都改好了
+- 但如果 GitHub 仓库侧的 `main` 保护、required checks、release tag ruleset 没真正下发
+- 那 CI/CD 仍然可能被直接 push、手工 tag 或错误权限路径绕开
+
+结论：
+
+- “代码内约束”和“GitHub 仓库侧保护规则”必须同时存在
+- 最好把仓库设置也脚本化，例如 `pnpm cicd:apply-github-guardrails`
+- 以后重建仓库、迁仓或新建镜像仓库时，不要靠人工回忆去点 settings
+
+---
+
+### 6. 能 dispatch workflow 的 token，不代表能改 branch protection / ruleset
+
+这次真实遇到的报错是：
+
+```text
+Resource not accessible by personal access token
+```
+
+出现位置：
+
+- `PUT /repos/<owner>/<repo>/branches/main/protection`
+- `POST /repos/<owner>/<repo>/rulesets`
+
+根因：
+
+- 当前 token 足够做 `workflow_dispatch`
+- 但没有仓库 `Administration` 权限
+- 所以 CI 可以触发，仓库治理 API 却会被 GitHub 直接拒绝
+
+修复方式：
+
+- 给治理脚本单独准备 admin token
+- 优先使用 `GH_ADMIN_TOKEN` / `GITHUB_ADMIN_TOKEN`
+- 或使用仓库专属变量，例如 `GITHUB_ADMIN_TOKEN_BG3CALCULATOR`
+- Fine-grained PAT 需要开启 Repository permissions -> `Administration: Read and write`
+
+验证方式：
+
+- 重新执行 `pnpm cicd:apply-github-guardrails`
+- 成功结果应至少包含：
+  - `Main branch protection: updated`
+  - `Release tag ruleset: created` 或 `updated`
+
+---
+
+### 7. tag ruleset 如果不显式放行 GitHub Actions，release workflow 会反咬自己
+
+现象：
+
+- 你已经按主流做法给 release tag 加了保护
+- 但 `create-release-tag.yml` 在 `git push origin refs/tags/<tag>` 时报权限错误
+
+根因：
+
+- workflow 是通过 GitHub Actions App 在推 tag
+- 如果 tag ruleset 没给 `github-actions` 这个 integration 保留 bypass
+- 那么自动化本身会被 tag 保护拦截
+
+当前仓库的修复策略：
+
+- release tag ruleset 显式保留 `github-actions` App bypass
+- 当前使用的 App id 是 `15368`
+- 该规则由 `pnpm cicd:apply-github-guardrails` 自动下发
+
+验证方式：
+
+- 检查 release tag ruleset 中是否存在：
+  - actor type: `Integration`
+  - actor id: `15368`
+  - bypass mode: `always`
+- 后续触发 `create-release-tag.yml` 时，workflow 应能成功推送新 tag
+
+---
+
 ## 建议保留的测试护栏
 
 下面这些测试已经证明有价值，不要删：
@@ -863,12 +943,14 @@ Node.js 20 actions are deprecated. The following actions are running on Node.js 
 
 ## 当前结论
 
-这次已确认并修复或加固的真实坑点有五个：
+这次已确认并修复或加固的真实坑点有七个：
 
 1. GitHub Actions job 级 `if` 不能直接引用 `matrix.*`
 2. 通过 `pnpm ... -- ...` 调脚本时，CLI 解析必须显式忽略裸 `--`
 3. tag 已推送不代表 release 一定会生成；四个版本文件若未先同步到目标 tag，workflow 会在 preflight 提前失败
 4. `publish-release` 是独立 job，不能直接假设前一个 job 准备好的 `pnpm` / checkout 仍然存在
 5. GitHub Actions 的 Node runtime 弃用告警要看 action metadata；必要时要用仓库内脚本或 CLI/REST API 替换旧 JavaScript action
+6. 能 dispatch workflow 的 token，不代表有 GitHub 仓库治理 API 所需的 Administration 权限
+7. release tag ruleset 必须显式放行 GitHub Actions integration，否则自动打 tag 会被自己配置的保护规则拦下
 
 这几个问题都已经在代码、脚本和测试中补了护栏，后续如果再次出现同类问题，优先先看本文件。

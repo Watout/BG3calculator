@@ -17,6 +17,7 @@ That split makes branch protection, auditability, and release provenance harder 
 
 - Local manual release fallback is removed.
 - `pnpm release:prepare` becomes a remote-only wrapper around `create-release-tag.yml`.
+- `pnpm cicd:apply-github-guardrails` becomes the bootstrap path for applying `main` protection and release tag rules to the GitHub repository.
 - The release-tag workflow validates remote `main` and creates a brand new tag without mutating `main`.
 - `release-desktop` and `desktop-build` share one reusable desktop build matrix workflow.
 - Docs and pitfall logs describe `origin/main` as the only release source of truth.

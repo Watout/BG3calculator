@@ -90,6 +90,21 @@ pwsh.exe -NoProfile -Command "$env:GH_TOKEN = '<github-token>'; pnpm tauri:build
 - `create-release-tag`: 手动从远端 `main` 创建一个全新的 release tag，不会修改 `main`。
 - `release-desktop`: 监听新的语义化版本 tag，先校验版本一致性，再构建 Windows / macOS 安装包并更新同名 GitHub Release。
 
+## GitHub 仓库保护规则
+
+首次把 CI/CD 治理落到 GitHub 仓库设置时，优先执行仓库内脚本，而不是手工点 settings：
+
+```powershell
+pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; pnpm cicd:apply-github-guardrails"
+pwsh.exe -NoProfile -Command "$env:GITHUB_ADMIN_TOKEN_BG3CALCULATOR = '<github-admin-token>'; pnpm cicd:apply-github-guardrails -- --dry-run"
+```
+
+说明：
+
+- 该命令会更新 `main` 的 branch protection，并创建或更新正式 release tag 的 ruleset。
+- 这里需要的是带仓库 `Administration: Read and write` 权限的 token，不是只够 dispatch workflow 的普通 token。
+- release tag ruleset 会保留 `github-actions` App 的 bypass，这样 `create-release-tag` 才能继续从远端 `main` 推出新 tag。
+
 ## 正式发布流程
 
 仓库当前采用严格治理模式：

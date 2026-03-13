@@ -15,6 +15,7 @@
     "vitest": "^4.0.18"
   },
   "scripts": {
+    "cicd:apply-github-guardrails": "node scripts/github-repo-guardrails.mjs",
     "cicd:dispatch-workflow": "node scripts/github-workflow-dispatch.mjs",
     "lint": "pnpm exec -- eslint apps packages --max-warnings 0",
     "typecheck": "pnpm exec tsc -b",
