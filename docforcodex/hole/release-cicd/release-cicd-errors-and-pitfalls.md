@@ -1036,6 +1036,73 @@ remote: - 2 of 2 required status checks are expected.
 
 ---
 
+### 12. release 准备提交推送到 feature 分支时，也可能先撞上远端分支同步差异
+
+这次真实打到的报错是：
+
+```text
+To https://github.com/Watout/BG3calculator.git
+ ! [rejected]        feature/pure-black-background -> feature/pure-black-background (fetch first)
+error: failed to push some refs to 'https://github.com/Watout/BG3calculator.git'
+hint: Updates were rejected because the remote contains work that you do not
+hint: have locally.
+```
+
+现象：
+
+- 本地已经完成 `0.1.9` 的四个版本文件同步
+- `pnpm release:preflight -- --tag 0.1.9`、`pnpm lint`、`pnpm typecheck`、`pnpm test` 都通过
+- 但把 `chore: prepare release 0.1.9` 推到 `feature/pure-black-background` 时被 GitHub 拒绝
+
+根因：
+
+- 远端同名 feature 分支在这之前已经新增了一个 `Merge branch 'main' into feature/pure-black-background` 提交
+- 本地分支还停在旧的分叉点上，只比旧远端多一个 release 准备 commit
+- 因此直接 `git push` 会命中非 fast-forward 拒绝
+
+这次的确认方式：
+
+- `git fetch origin feature/pure-black-background`
+- `git log --oneline --decorate -5 --graph --all --branches=feature/pure-black-background`
+- 结果显示：
+  - 本地 HEAD 是 `chore: prepare release 0.1.9`
+  - 远端分支额外存在 `Merge branch 'main' into feature/pure-black-background`
+
+修复方式：
+
+- 先抓取远端 feature 分支
+- 再把本地新增的 release commit rebase 到远端最新 feature 分支之上
+- 然后重新执行正常的 `git push`
+
+本次实际执行：
+
+```text
+git fetch origin feature/pure-black-background
+git rebase origin/feature/pure-black-background
+git push
+```
+
+验证结果：
+
+- rebase 成功
+- `git push` 成功把分支推进到 `d665d12`
+- 说明“版本文件和校验都没问题，但远端分支已有新提交”时，阻塞点在分支同步，不在 release 脚本本身
+
+后续建议：
+
+- 在 feature 分支上准备 release PR 时，推送前先 `git fetch` 看一下同名远端分支是否被别人或自动化更新过
+- 如果官方 release 仍要求走 PR -> merge -> `main` -> `pnpm release:prepare`，就不要把这种 `fetch first` 误判成 tag 冲突或 workflow dispatch 失败
+
+相关文件路径：
+
+- `package.json`
+- `apps/desktop-tauri/package.json`
+- `apps/desktop-tauri/src-tauri/tauri.conf.json`
+- `apps/desktop-tauri/src-tauri/Cargo.toml`
+- `docforcodex/hole/release-cicd/release-cicd-errors-and-pitfalls.md`
+
+---
+
 ## 建议保留的测试护栏
 
 下面这些测试已经证明有价值，不要删：
@@ -1071,7 +1138,7 @@ remote: - 2 of 2 required status checks are expected.
 
 ## 当前结论
 
-这次已确认并修复或加固的真实坑点有十一个：
+这次已确认并修复或加固的真实坑点有十二个：
 
 1. GitHub Actions job 级 `if` 不能直接引用 `matrix.*`
 2. 通过 `pnpm ... -- ...` 调脚本时，CLI 解析必须显式忽略裸 `--`
@@ -1084,5 +1151,6 @@ remote: - 2 of 2 required status checks are expected.
 9. `vitest` 不支持 `--runInBand`，不能直接套用 Jest 的命令参数
 10. 单管理员个人仓库如果同时要求 PR review 且强制管理员受保护，会把自己锁死
 11. 共享 `cicd` skill 如果不跟着仓库 release 治理同步更新，也会把 agent 引回已经废弃的发版路径
+12. release 准备提交即使本地校验全绿，也可能因为远端同名 feature 分支已前进而先卡在 `git push (fetch first)`
 
 这几个问题都已经在代码、脚本和测试中补了护栏，后续如果再次出现同类问题，优先先看本文件。
