@@ -1163,6 +1163,70 @@ git push
 
 ---
 
+### 14. personal-repo tag ruleset 一旦禁止删除已发布 tag，错误创建出来的 release tag 就不能靠“删掉再重推”补救
+
+这次真实打到的报错是：
+
+```text
+remote: error: GH013: Repository rule violations found for refs/tags/0.1.9.
+remote: - Cannot delete this tag
+```
+
+现象：
+
+- `create-release-tag.yml` 已经把 `0.1.9` tag 推上远端
+- 但由于默认 `GITHUB_TOKEN` 递归保护，下游 `release-desktop.yml` 没有被触发
+- 直觉上的补救动作是：
+  - 删除远端 `0.1.9`
+  - 再用 PAT 重新 push 同名 tag，手动触发 `release-desktop`
+- 结果删除远端 tag 这一步直接被 ruleset 拦截
+
+根因：
+
+- 当前仓库是个人账号仓库
+- `pnpm cicd:apply-github-guardrails` 在个人仓库里会采用兼容模式：
+  - 允许创建新 tag
+  - 禁止更新 / 删除已发布 tag
+- 所以一旦 tag 已经被错误地创建出去，就不能再靠“删掉再重推同名 tag”回到触发态
+
+这次的实际后果：
+
+- 远端 `0.1.9` tag 保留不变
+- break-glass 的“删除并重推同名 tag”路径不可用
+- 只能改走等价发布补救路径：
+  - 手动 dispatch `desktop-build.yml`
+  - 下载该 run 的 artifact
+  - 本地执行 `pnpm release:publish -- --tag 0.1.9 ...`
+
+这次的修复路径：
+
+- dispatch `desktop-build.yml`，输入：
+  - `target=all`
+  - `request_id=release-0.1.9-manual`
+- 等 workflow run `23082390982` 成功
+- 下载：
+  - `bg3calculator-windows-x64`
+  - `bg3calculator-macos-universal`
+- 本地执行 `release-publish`，把 `.dmg`、`.msi`、`.exe` 上传到 `0.1.9`
+
+后续防回归建议：
+
+- 个人仓库兼容模式下，tag 一旦错误创建，默认应优先准备“手动 build + release-publish”补救方案，而不是先假设能删除 tag
+- 如果未来要继续保留“远端 workflow 创建 tag，再由 tag push 触发 release”这条链路，就必须同时解决两个问题：
+  - `GITHUB_TOKEN` 推 tag 不会带起下游 workflow
+  - 个人仓库 tag ruleset 不允许删除错误创建的已发布 tag
+
+相关文件路径：
+
+- `.github/workflows/create-release-tag.yml`
+- `.github/workflows/desktop-build.yml`
+- `.github/workflows/release-desktop.yml`
+- `scripts/release-publish.mjs`
+- `scripts/github-repo-guardrails.mjs`
+- `docforcodex/hole/release-cicd/release-cicd-errors-and-pitfalls.md`
+
+---
+
 ## 建议保留的测试护栏
 
 下面这些测试已经证明有价值，不要删：
@@ -1198,7 +1262,7 @@ git push
 
 ## 当前结论
 
-这次已确认并修复或加固的真实坑点有十三个：
+这次已确认并修复或加固的真实坑点有十四个：
 
 1. GitHub Actions job 级 `if` 不能直接引用 `matrix.*`
 2. 通过 `pnpm ... -- ...` 调脚本时，CLI 解析必须显式忽略裸 `--`
@@ -1213,5 +1277,6 @@ git push
 11. 共享 `cicd` skill 如果不跟着仓库 release 治理同步更新，也会把 agent 引回已经废弃的发版路径
 12. release 准备提交即使本地校验全绿，也可能因为远端同名 feature 分支已前进而先卡在 `git push (fetch first)`
 13. `create-release-tag.yml` 用默认 `GITHUB_TOKEN` 推出的 tag，不会继续触发 `release-desktop.yml`
+14. personal-repo tag ruleset 一旦禁止删除已发布 tag，错误创建出来的 release tag 就不能靠“删掉再重推”补救
 
 这几个问题都已经在代码、脚本和测试中补了护栏，后续如果再次出现同类问题，优先先看本文件。
