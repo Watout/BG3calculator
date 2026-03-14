@@ -1103,6 +1103,66 @@ git push
 
 ---
 
+### 13. `create-release-tag.yml` 用默认 `GITHUB_TOKEN` 推出的 tag，不会继续触发 `release-desktop.yml`
+
+这次真实打到的现象是：
+
+- 本地执行 `pnpm release:prepare -- --tag 0.1.9`
+- 远端 workflow [`create-release-tag.yml`](C:/1W/codingProject/BG3calculator/.github/workflows/create-release-tag.yml) run `23082261518` 被成功 dispatch
+- job 里的关键步骤都成功：
+  - `Ensure release tag does not already exist remotely`
+  - `Preflight release metadata`
+  - `Create and push release tag from main HEAD`
+- 远端 `0.1.9` tag 也确实已经存在，并指向 `7d4ef52f71d14adb28765e06db6d803ff2448b77`
+- 但 [`release-desktop.yml`](C:/1W/codingProject/BG3calculator/.github/workflows/release-desktop.yml) 没有因为这次 tag push 自动出现新的 workflow run
+
+补充细节：
+
+- `create-release-tag` 这次的 run 最终显示 `failure`
+- 失败步骤是最后的 `Summarize release handoff`
+- 但真正关键的 tag 创建步骤已经成功，因此这不是“tag 没推上去”，而是“tag 推上去后没有带起下游 release workflow”
+
+根因：
+
+- 当前 `create-release-tag.yml` 里推 tag 用的是 workflow 默认的 `GITHUB_TOKEN`
+- GitHub Actions 对默认 `GITHUB_TOKEN` 触发出来的大多数仓库事件有递归保护
+- 因此“workflow 用 `GITHUB_TOKEN` 再次 `git push` 出来的 tag push”不会继续触发另一个以 `push.tags` 为入口的 workflow
+- 当前仓库的正式发布链路是：
+  - `create-release-tag.yml`
+  - `release-desktop.yml`
+- 所以下游 `release-desktop` 被静默拦住了
+
+这次的验证方式：
+
+- `git ls-remote --tags origin refs/tags/0.1.9`
+- GitHub Actions run:
+  - `create-release-tag / 0.1.9`: `https://github.com/Watout/BG3calculator/actions/runs/23082261518`
+- 对照仓库级 push workflow runs，确认没有新的 `release-desktop` / `0.1.9`
+
+这次的临时修复方式：
+
+- 明确授权后，删除远端 `0.1.9` tag
+- 使用仓库专属 PAT 从本地重新 push 同名 tag
+- 让真正的 PAT 身份产生 tag push，从而触发 `release-desktop.yml`
+
+后续防回归建议：
+
+- 不要再默认假设“workflow 推出的 tag push 一定会继续触发下游 workflow”
+- 如果正式链路坚持保留 `create-release-tag.yml -> release-desktop.yml` 两段式设计，需要改成以下任一种稳态方案：
+  - 用 PAT / GitHub App 推 tag，而不是默认 `GITHUB_TOKEN`
+  - 改成 `repository_dispatch` / `workflow_dispatch` 直接触发 `release-desktop`
+  - 或把发布逻辑收口进同一个 workflow，避免依赖二次 `push` 触发
+- 在 release 文档里明确记录这个平台行为，不要继续把“tag 创建成功”误写成“release-desktop 一定已启动”
+
+相关文件路径：
+
+- `.github/workflows/create-release-tag.yml`
+- `.github/workflows/release-desktop.yml`
+- `scripts/release-prepare.mjs`
+- `docforcodex/hole/release-cicd/release-cicd-errors-and-pitfalls.md`
+
+---
+
 ## 建议保留的测试护栏
 
 下面这些测试已经证明有价值，不要删：
@@ -1138,7 +1198,7 @@ git push
 
 ## 当前结论
 
-这次已确认并修复或加固的真实坑点有十二个：
+这次已确认并修复或加固的真实坑点有十三个：
 
 1. GitHub Actions job 级 `if` 不能直接引用 `matrix.*`
 2. 通过 `pnpm ... -- ...` 调脚本时，CLI 解析必须显式忽略裸 `--`
@@ -1152,5 +1212,6 @@ git push
 10. 单管理员个人仓库如果同时要求 PR review 且强制管理员受保护，会把自己锁死
 11. 共享 `cicd` skill 如果不跟着仓库 release 治理同步更新，也会把 agent 引回已经废弃的发版路径
 12. release 准备提交即使本地校验全绿，也可能因为远端同名 feature 分支已前进而先卡在 `git push (fetch first)`
+13. `create-release-tag.yml` 用默认 `GITHUB_TOKEN` 推出的 tag，不会继续触发 `release-desktop.yml`
 
 这几个问题都已经在代码、脚本和测试中补了护栏，后续如果再次出现同类问题，优先先看本文件。
