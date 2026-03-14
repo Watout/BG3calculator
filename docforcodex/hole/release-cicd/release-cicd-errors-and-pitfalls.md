@@ -990,6 +990,52 @@ remote: - 2 of 2 required status checks are expected.
 
 ---
 
+### 11. 共享 `cicd` skill 也会漂移，不能把外部技能文案长期当成仓库 release 事实
+
+这次真实发现的现象是：
+
+- 外部共享技能文件 `C:/Users/G104/.agents/skills/cicd/SKILL.md` 里的 `BG3calculator_Profile`
+- 仍然写着旧的 `prepare-release.yml`
+- 仍然建议 `release:prepare-local` / `release:prepare-remote`
+- 还保留了“本地 `main` ahead 时可以先 push 再 dispatch”的旧心智
+
+根因：
+
+- 仓库后来已经切到严格的远端事实源模型
+- 正式 release 只允许走 `pnpm release:prepare` -> `create-release-tag.yml` -> `release-desktop.yml`
+- `release:prepare` 当前固定带 `--no-push` 语义，只接受“本地 `main` 已和 `origin/main` 对齐”的状态
+- 但共享 skill 没有跟着 `strict-release-governance` 和本仓库文档一起更新，导致“外部技能事实”和“仓库事实”漂移
+
+修复方式：
+
+- 把共享 `cicd` skill 的 `BG3calculator_Profile` 改成匹配当前仓库：
+  - workflow 名称改为 `create-release-tag.yml`
+  - 删除对 `release:prepare-local` / `release:prepare-remote` 的默认建议
+  - 明确 `pnpm release:prepare` 只做本地校验和远端 dispatch，不会本地 `commit/push/tag`
+  - 明确本地 `main` ahead 时应先修复分支状态，而不是期待 wrapper 代替你 push
+  - 明确个人账号仓库的 tag ruleset 需要走兼容模式，不能假设一定能给 `github-actions` integration 配 bypass
+
+验证方式：
+
+- 对照 `docsforcodex/overall.md`
+- 对照 `docsforcodex/action-cicd-release-flow.md`
+- 对照 `docsforcodex/local-cicd-orchestration.md`
+- 对照 `scripts/release-prepare.mjs`
+- 对照 `.github/workflows/create-release-tag.yml`
+- 对照 `scripts/github-repo-guardrails.mjs`
+
+相关文件路径：
+
+- `C:/Users/G104/.agents/skills/cicd/SKILL.md`
+- `docsforcodex/overall.md`
+- `docsforcodex/action-cicd-release-flow.md`
+- `docsforcodex/local-cicd-orchestration.md`
+- `scripts/release-prepare.mjs`
+- `.github/workflows/create-release-tag.yml`
+- `scripts/github-repo-guardrails.mjs`
+
+---
+
 ## 建议保留的测试护栏
 
 下面这些测试已经证明有价值，不要删：
@@ -1025,7 +1071,7 @@ remote: - 2 of 2 required status checks are expected.
 
 ## 当前结论
 
-这次已确认并修复或加固的真实坑点有十个：
+这次已确认并修复或加固的真实坑点有十一个：
 
 1. GitHub Actions job 级 `if` 不能直接引用 `matrix.*`
 2. 通过 `pnpm ... -- ...` 调脚本时，CLI 解析必须显式忽略裸 `--`
@@ -1037,5 +1083,6 @@ remote: - 2 of 2 required status checks are expected.
 8. 个人账号仓库当前不能直接把 `github-actions` integration 作为 tag ruleset bypass actor，需要退到兼容模式或更换仓库/凭据模型
 9. `vitest` 不支持 `--runInBand`，不能直接套用 Jest 的命令参数
 10. 单管理员个人仓库如果同时要求 PR review 且强制管理员受保护，会把自己锁死
+11. 共享 `cicd` skill 如果不跟着仓库 release 治理同步更新，也会把 agent 引回已经废弃的发版路径
 
 这几个问题都已经在代码、脚本和测试中补了护栏，后续如果再次出现同类问题，优先先看本文件。
